@@ -11,7 +11,7 @@ This project stands entirely on other people's work and I want to say that up fr
 - **[Rinnegatamante](https://github.com/Rinnegatamante)**'s vitaGL, and their Vita ports of Ghostship (SM64) and 2ship2harkinian (OoT/MM) on this exact same libultraship stack, are the whole reason the Vita side of this is even possible. The Vita-specific patches in this repo (vitaGL init, NEON math hooks, SDL2/GL backend adjustments) are lifted straight from that work and adapted for Paper Mario.
 - **[Kenix3](https://github.com/Kenix3)** and the libultraship / Ship of Harkinian team for the rendering engine all of this is built on.
 
-If you're one of these people reading this, thank you!!
+If you're one of these people reading this, thank you!
 
 ## Legal Notice
 
