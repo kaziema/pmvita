@@ -1,191 +1,73 @@
-# PaperShip
+# Paper Mario: PS Vita Port
 
-A decomp-based PC port of Paper Mario 64 using [libultraship](https://github.com/Kenix3/libultraship).
+A lot of N64 emulation on Vita is absolute bunk, so a native port of Paper Mario was my next project.
 
-Built from the [Paper Mario decompilation](https://github.com/pmret/papermario) with a custom PORT layer that bridges N64 hardware calls to modern PC graphics (Metal/OpenGL/DirectX), audio, and input via libultraship.
+This is built on top of [PaperShip](https://github.com/versacepapermario/papermario-pc-upload), the decomp-based port of Paper Mario 64 running on [libultraship](https://github.com/Kenix3/libultraship), retargeted for PS Vita hardware.
+
+## Flowers where they're due
+
+This project stands entirely on other people's work and I want to say that up front:
+
+- **[versacepapermario](https://github.com/versacepapermario)** built PaperShip, which this is built from. All the hard decomp-to-modern-hardware bridging work (the PORT layer, the audio bridge, the UI, the ROM loading) is theirs.
+- **The [Paper Mario Decompilation Team](https://github.com/pmret/papermario)** did the actual multi-year reverse engineering that made any of this possible.
+- **[Rinnegatamante](https://github.com/Rinnegatamante)**'s vitaGL, and their Vita ports of Ghostship (SM64) and 2ship2harkinian (OoT/MM) on this exact same libultraship stack, are the whole reason the Vita side of this is even possible. The Vita-specific patches in this repo (vitaGL init, NEON math hooks, SDL2/GL backend adjustments) are lifted straight from that work and adapted for Paper Mario.
+- **[Kenix3](https://github.com/Kenix3)** and the libultraship / Ship of Harkinian team for the rendering engine all of this is built on.
+
+If you're one of these people reading this, thank you!!
 
 ## Legal Notice
 
-This project is a **clean-room PC port** built entirely from the publicly available [Paper Mario decompilation](https://github.com/pmret/papermario). It follows the same legal approach as [Ship of Harkinian](https://github.com/HarbourMasters/Shipwright) (Zelda OoT PC port) and [Ghostship](https://github.com/HarbourMasters/Ghostship) (SM64 PC port).
+This is a clean-room port built entirely from the publicly available [Paper Mario decompilation](https://github.com/pmret/papermario), same legal approach as [Ship of Harkinian](https://github.com/HarbourMasters/Shipwright) and [Ghostship](https://github.com/HarbourMasters/Ghostship).
 
-- **This repository contains NO copyrighted Nintendo assets** — no ROM data, no textures, no audio, no models
-- All game assets are read at runtime from a user-provided ROM file
-- We do not condone piracy. You must provide your own legally obtained copy of the game.
-
-## Features
-
-- Native PC rendering via Metal (macOS), OpenGL, or DirectX 11 (Windows)
-- Full audio (BGM, sound effects, MSEQ sequences)
-- Controller and keyboard support with remappable controls
-- Settings menu (Escape key) with resolution scaling, MSAA, VSync, volume controls
-- Save system (file-backed flash emulation)
-- 4:3 aspect ratio with borderless fullscreen
-
-## Quick Start
-
-### 1. Get the source code
-
-```bash
-git clone --recursive <repo-url>
-cd papermario-pc-upload
-```
-
-If you already cloned without `--recursive`:
-```bash
-git submodule update --init --recursive
-```
-
-### 2. Provide your ROM
-
-You need a **US** Paper Mario ROM in `.z64` format. Place it in the project root or build directory.
-
-Accepted filenames: `Paper Mario (USA).z64`, `baserom.us.z64`, `pm64.z64`, `papermario.z64`
-
-| Version | SHA-1 Hash |
-|---------|-----------|
-| US | `3837f44cda784b466c9a2d99df70d77c322b97a0` |
-
-You can verify your ROM hash at https://www.romhacking.net/hash/
-
-### 3. Build and run
-
-#### macOS (primary tested platform)
-
-```bash
-brew install cmake sdl2 glew
-mkdir build && cd build
-cmake ..
-cmake --build . --target PaperShip -j$(sysctl -n hw.ncpu)
-cmake --build . --target GeneratePortO2R
-./PaperShip
-```
-
-#### Linux
-
-```bash
-sudo apt install cmake build-essential libsdl2-dev libpng-dev libglew-dev
-mkdir build && cd build
-cmake ..
-cmake --build . --target PaperShip -j$(nproc)
-cmake --build . --target GeneratePortO2R
-./PaperShip
-```
-
-#### Windows (Visual Studio)
-
-```bash
-mkdir build && cd build
-cmake .. -G "Visual Studio 17 2022" -A x64
-cmake --build . --target PaperShip --config Release
-cmake --build . --target GeneratePortO2R --config Release
-```
-
-#### Windows (MSYS2/MinGW)
-
-```bash
-pacman -S mingw-w64-x86_64-cmake mingw-w64-x86_64-gcc mingw-w64-x86_64-SDL2 mingw-w64-x86_64-glew
-mkdir build && cd build
-cmake .. -G "MinGW Makefiles"
-cmake --build . --target PaperShip -j$(nproc)
-cmake --build . --target GeneratePortO2R
-```
-
-The game automatically searches for the ROM in the executable's directory and parent directories. No extraction step needed.
-
-## Platform Support
-
-| Platform | Status | Notes |
-|----------|--------|-------|
-| macOS (Apple Silicon) | Fully tested | Primary development platform |
-| macOS (Intel) | Should work | Not actively tested |
-| Windows | Builds supported | Community contributions welcome for platform-specific fixes |
-| Linux | Builds supported | Community contributions welcome for platform-specific fixes |
-
-## Controls
-
-### Default Keyboard
-
-| N64 | A | B | Z | Start | Analog Stick | C Buttons | D-Pad |
-|-----|---|---|---|-------|-------------|-----------|-------|
-| Keyboard | X | C | Z | Space | WASD | Arrow Keys | TFGH |
-
-### Other Shortcuts
-
-| Key | Action |
-|-----|--------|
-| Escape | Toggle settings menu |
-| F11 | Toggle fullscreen |
-
-Controllers are automatically detected. Button mapping can be configured in the settings menu.
-
-## Graphics Backends
-
-| Platform | Default Backend | Alternatives |
-|----------|----------------|-------------|
-| macOS | Metal | OpenGL |
-| Windows | DirectX 11 | OpenGL |
-| Linux | OpenGL | — |
+- **This repository contains NO copyrighted Nintendo assets.** No ROM data, no textures, no audio, no models.
+- All game assets are read at runtime from a ROM you provide yourself.
+- I don't condone piracy. Bring your own legally obtained copy.
 
 ## Current Status
 
-This port has been **playtested through Chapter 2** (through the Tutankoopa boss fight). The game is largely playable from start through that point, but there are still visual artifacts and bugs. Chapters beyond Chapter 2 have not been tested and may have additional issues.
+**Not playable yet.** Zero hours on real hardware, no Vita build target exists, nothing has been compiled for Vita. This is early groundwork.
 
-## Known Issues
+Done so far:
+- Fixed a heap-sizing bug where Vita would have silently inherited 64-bit desktop heap sizes instead of the correct 32-bit N64-original ones
+- Vita boot path wired into the entry point: heap allocation, max CPU/GPU clocks, game loop moved onto a properly-stacked worker thread
+- libultraship `__vita__` patches ported in from Ghostship/2ship2harkinian: vitaGL scratch-buffer lifecycle, ARM NEON math, SDL2 input/window/framerate backend, OpenGL backend adjustments
 
-**Gameplay-blocking**: None known through Chapter 2.
+Still to do:
+- `Makefile.vita` / toolchain wiring, so there's actually something to build
+- Two shader-cache-related `gfx_opengl.cpp` patches from the reference ports (that part of the file has drifted too far for a safe direct port)
+- Everything after that: first boot, asset pipeline on-device, controls, performance work
 
-**Visual artifacts**:
-- Flames in Tutankoopa's tomb are not rendered (N64 uses chroma key render-to-texture which is not yet supported)
-- Visual artifacting around text boxes after chapter completion and when acquiring the upgraded hammer in Tutankoopa's tomb
-- Minor visual artifacting when Tutankoopa uses the giant chain chomp ability
-- Image displayed when a new partner is acquired is not quite right
-- Toad Town dock area has water geometry clipping issues
-- Some dual-texture blend modes fall back to single-texture (TEXEL1 sampling limitation)
+## Building
 
-**Unimplemented effects**:
-- Water splash refraction effect
-- Underwater distortion warp effect
-- Pause screen shows a dark fill instead of freeze-frame (no GPU framebuffer readback)
-- Crystal ball reflection in Merlon's house
+Nothing to build yet. Once the Vita build target lands, instructions go here.
 
-See `PORT_SKIPS.md` for a complete list of stubbed features.
+You'll need a **US** Paper Mario ROM in `.z64` format when that time comes.
 
-## Architecture
+| Version | SHA-1 |
+|---------|-------|
+| US | `3837f44cda784b466c9a2d99df70d77c322b97a0` |
+
+## Requirements (eventual)
+
+- A homebrew-enabled PS Vita or PS TV
+- [VitaSDK](https://vitasdk.org/)
+- vitaGL, vitaShaRK, math-neon (all available through `vdpm`)
+
+## Layout
 
 ```
-papermario-pc-upload/
 ├── src/              # Decomp game source (C) with #ifdef PORT adaptations
 ├── include/          # Game headers
 ├── port/             # PORT layer: OS stubs, ROM loading, texture conversion,
-│                     #   UI menu, shape swizzling, audio bridge
-├── libultraship/     # Rendering engine (submodule)
-├── assets/           # Asset YAML definitions (non-copyrighted metadata)
-└── build/            # Build output
+│                     #   UI, shape swizzling, audio bridge, Vita entry point
+├── libultraship/     # Rendering engine, carrying the Vita patches
+└── assets/           # Asset YAML definitions (non-copyrighted metadata)
 ```
-
-The game reads all assets at runtime from the provided ROM file. No copyrighted data is stored in this repository.
-
-## Contributing
-
-See [ARCHITECTURE.md](ARCHITECTURE.md) for a detailed guide to the codebase, frame lifecycle, subsystem explanations, and common development patterns.
-
-Key areas that need work:
-
-- **Flame effect**: Needs proper chroma key emulation or shader-based approach
-- **TEXEL1 sampling**: Fix the Fast3D interpreter to properly sample tile 1 in 2-cycle mode
-- **Framebuffer effects**: water_splash, underwater, crystal_ball, pause freeze-frame
-- **Frame interpolation**: 60fps support via matrix interpolation
-- **Windows/Linux testing**: Platform-specific bug fixes and testing
-
-## License
-
-This project does not include any copyrighted Nintendo assets. You must provide your own legally obtained ROM to use this software.
-
-This software is provided as-is for educational and interoperability purposes.
 
 ## Credits
 
-- **versacepapermario** — Project lead
-- [Paper Mario Decompilation Team](https://github.com/pmret/papermario) — Complete US/JP/PAL/iQue decomp
-- [libultraship / Ship of Harkinian Team](https://github.com/HarbourMasters) — PC rendering engine
-- [Ghostship (SM64 PC Port)](https://github.com/HarbourMasters/Ghostship) — Reference implementation
+- **[kaziema](https://github.com/kaziema)** — PS Vita port
+- **[versacepapermario](https://github.com/versacepapermario)** — PaperShip, the port this is built from
+- [Paper Mario Decompilation Team](https://github.com/pmret/papermario) — the decomp
+- [Rinnegatamante](https://github.com/Rinnegatamante) — vitaGL, and the Vita ports this platform layer is built from
+- [libultraship / Ship of Harkinian Team](https://github.com/HarbourMasters) — rendering engine
