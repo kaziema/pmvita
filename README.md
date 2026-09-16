@@ -1,7 +1,5 @@
 # Paper Mario: PS Vita Port
 
-A lot of N64 emulation on Vita is absolute bunk, so a native port of Paper Mario was my next project.
-
 This is built on top of [PaperShip](https://github.com/versacepapermario/papermario-pc-upload), the decomp-based port of Paper Mario 64 running on [libultraship](https://github.com/Kenix3/libultraship), retargeted for PS Vita hardware.
 
 ## Flowers where they're due
