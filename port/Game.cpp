@@ -21,9 +21,8 @@
 #ifdef __vita__
 #include <vitasdk.h>
 #include <pthread.h>
-// vitasdk's newlib heap defaults to well under what a game this size needs.
-// Ghostship (SM64) and 2ship2harkinian (OoT/MM) both use this exact value on
-// the same libultraship stack -- treat it as the proven baseline, not a guess.
+// vitasdk's default newlib heap is too small for this game. Ghostship and
+// 2ship2harkinian both use this exact value on the same libultraship stack.
 int _newlib_heap_size_user = 256 * 1024 * 1024;
 #endif
 
@@ -277,10 +276,8 @@ extern "C" void *vita_main(void *argv);
 int SDL_main(int argc, char** argv) {
 #elif defined(__vita__)
 int main(int argc, char* argv[]) {
-    // Vita's main thread has a small default stack, and the whole game loop
-    // below runs for the process lifetime -- same pattern Ghostship and
-    // 2ship2harkinian use: bump clocks, hand off to a properly-stacked
-    // worker thread, and let main() just wait it out.
+    // Vita's main thread has a small default stack. Bump clocks, hand off
+    // to a properly-stacked worker thread, same as Ghostship/2ship2harkinian.
     scePowerSetArmClockFrequency(444);
     scePowerSetBusClockFrequency(222);
     scePowerSetGpuClockFrequency(222);

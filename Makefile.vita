@@ -1,0 +1,215 @@
+TARGET  := PaperMarioVita
+TITLE   := PPMR00001
+
+PREFIX  := arm-vita-eabi
+CC      := $(PREFIX)-gcc
+CXX     := $(PREFIX)-g++
+STRIP   := $(PREFIX)-strip
+
+# -----------------------------------------------------------------------------
+# Source discovery
+# -----------------------------------------------------------------------------
+# Mirrors CMakeLists.txt's source globs and exclusions: src/os and src/nusys
+# are replaced by libultraship + my shims; the rest are PAL-only, unused, or
+# #included-not-compiled files.
+
+GAME_CFILES := $(shell find src -name '*.c' \
+	-not -path 'src/os/*' \
+	-not -path 'src/nusys/*' \
+	-not -name '*.inc.c' \
+	-not -name 'unused_gfx.c' \
+	-not -name 'crash_screen.c' \
+	-not -name 'filemenu_selectlanguage.c' \
+	-not -name 'level_up_letters_en_de.c' \
+	-not -name 'level_up_letters_fr.c' \
+	-not -name 'level_up_letters_es.c' \
+	-not -name 'starpoint_de.c' \
+	-not -name 'starpoint_es.c' \
+	-not -name 'starpoint_fr.c' \
+	-not -name 'starpoint_en.c' \
+	-not -name 'npc_merlee.c' \
+	-not -name 'npc_moustafa.c' \
+	-not -name 'npc_hint_dryite.c' \
+	-not -name 'npc_hint_dryite_companion.c' \
+	-not -name 'npc_composer.c' \
+	-not -name 'npc_shop_owner.c' \
+	| grep -vE 'kzn_19_anim[0-9]+\.c$$')
+
+PORT_CFILES   := $(shell find port -name '*.c')
+PORT_CPPFILES := $(shell find port -name '*.cpp')
+
+# libultraship itself, minus the desktop D3D/Metal backends (Vita has
+# neither) and stray CMakeFiles/ build cruft committed by mistake.
+LUS_CFILES   := $(shell find libultraship/src -name '*.c' -not -path '*/CMakeFiles/*')
+LUS_CPPFILES := $(shell find libultraship/src -name '*.cpp' -not -path '*/CMakeFiles/*' \
+	-not -name 'gfx_direct3d_common.cpp' \
+	-not -name 'gfx_direct3d11.cpp' \
+	-not -name 'gfx_dxgi.cpp' \
+	-not -name 'gfx_metal.cpp' \
+	-not -name 'gfx_metal_shader.cpp')
+
+# Deps libultraship normally fetches via CMake, vendored here since that
+# fetch logic didn't survive the flatten (see README).
+IMGUI_CPPFILES := libultraship/imgui/imgui.cpp \
+	libultraship/imgui/imgui_demo.cpp \
+	libultraship/imgui/imgui_draw.cpp \
+	libultraship/imgui/imgui_tables.cpp \
+	libultraship/imgui/imgui_widgets.cpp \
+	libultraship/imgui/backends/imgui_impl_opengl3.cpp \
+	libultraship/imgui/backends/imgui_impl_sdl2.cpp
+
+PRISM_CPPFILES := libultraship/prism-processor/src/prism/ast.cpp \
+	libultraship/prism-processor/src/prism/processor.cpp \
+	libultraship/prism-processor/src/prism/lexer.cpp \
+	libultraship/prism-processor/src/prism/utils/gv.cpp
+PRISM_CFILES := libultraship/prism-processor/src/prism/utils/invoke.c
+
+MONOCYPHER_CFILES := libultraship/monocypher/src/monocypher.c \
+	libultraship/monocypher/src/optional/monocypher-ed25519.c
+
+STB_CFILES := libultraship/stb/stb_impl.c
+
+CFILES   := $(GAME_CFILES) $(PORT_CFILES) $(LUS_CFILES) $(PRISM_CFILES) $(MONOCYPHER_CFILES) $(STB_CFILES)
+CPPFILES := $(PORT_CPPFILES) $(LUS_CPPFILES) $(IMGUI_CPPFILES) $(PRISM_CPPFILES)
+
+OBJS := $(CFILES:.c=.o) $(CPPFILES:.cpp=.o)
+
+# Flatten every object into f/ with numbered names before linking. ~4300+
+# source files blows past argv limits on a straight link line -- same fix
+# Ghostship-vita/2ship2harkinian use.
+OBJS_PREPARE := $(CFILES:.c=.ok) $(CPPFILES:.cpp=.ok)
+FINAL_OBJS   := $(wildcard f/*.o)
+
+# -----------------------------------------------------------------------------
+# Includes
+# -----------------------------------------------------------------------------
+
+INCLUDES := . include src port \
+	libultraship/include libultraship/include/libultraship libultraship/src \
+	libultraship/imgui libultraship/imgui/backends \
+	libultraship/thread-pool/include \
+	libultraship/prism-processor/src \
+	libultraship/nlohmann-json/include \
+	libultraship/spdlog/include \
+	libultraship/stb \
+	libultraship/monocypher/src libultraship/monocypher/src/optional \
+	$(VITASDK)/$(PREFIX)/include/SDL2
+
+# -----------------------------------------------------------------------------
+# Compile flags
+# -----------------------------------------------------------------------------
+# PM64_COMPILE_DEFINITIONS from CMakeLists.txt + libultraship's shared
+# defines (GBI_FLOATS must match or Mtx/MtxF mangling breaks at link time)
+# + CVAR_* strings (verified via a real cmake run, not guessed) + Vita
+# build flags matching Ghostship-vita/2ship2harkinian.
+
+CFLAGS := -g -Wl,-q,--allow-multiple-definition -O2 -ffast-math -fno-short-enums -fsigned-char \
+	-fno-strict-aliasing -Wno-narrowing -include pthread.h \
+	$(foreach dir,$(INCLUDES),-I$(dir)) \
+	-D_LANGUAGE_C -DVERSION_US=1 -DENABLE_RUMBLE=1 -DF3DEX_GBI_2=1 -DGBI_FLOATS=1 \
+	-DAVOID_UB=1 -DPORT=1 \
+	-D_USE_MATH_DEFINES -DCIMGUI_DEFINE_ENUMS_AND_STRUCTS -DIMGUI_DEFINE_MATH_OPERATORS \
+	-DENABLE_OPENGL=1 -DNO_OTR_TEXTURES=1 -DYAML_CPP_STATIC_DEFINE -DEXCLUDE_MPQ_SUPPORT \
+	-DSKIP_OTR_HANDLERS=1 \
+	-DIMGUI_IMPL_OPENGL_ES2 -DSPDLOG_ACTIVE_LEVEL=6 -DSPDLOG_HEADER_ONLY \
+	-DCVAR_PREFIX_COSMETIC=\"gCosmetics\" \
+	-DCVAR_PREFIX_AUDIO=\"gAudioEditor\" \
+	-DCVAR_PREFIX_CHEAT=\"gCheats\" \
+	-DCVAR_PREFIX_ENHANCEMENT=\"gEnhancements\" \
+	-DCVAR_PREFIX_SETTING=\"gSettings\" \
+	-DCVAR_PREFIX_WINDOW=\"gOpenWindows\" \
+	-DCVAR_PREFIX_DEVELOPER_TOOLS=\"gDeveloperTools\" \
+	-DCVAR_PREFIX_GENERAL=\"gGeneral\" \
+	-DCVAR_PREFIX_GAMEPLAY_STATS=\"gGameplayStats\" \
+	-DCVAR_VSYNC_ENABLED=\"gSettings.VsyncEnabled\" \
+	-DCVAR_Z_FIGHTING_MODE=\"gSettings.ZFightingMode\" \
+	-DCVAR_INTERNAL_RESOLUTION=\"gSettings.InternalResolution\" \
+	-DCVAR_MSAA_VALUE=\"gSettings.MSAAValue\" \
+	-DCVAR_SDL_WINDOWED_FULLSCREEN=\"gSettings.SdlWindowedFullscreen\" \
+	-DCVAR_TEXTURE_FILTER=\"gSettings.TextureFilter\" \
+	-DCVAR_IMGUI_CONTROLLER_NAV=\"gSettings.ControlNav\" \
+	-DCVAR_CONSOLE_WINDOW_OPEN=\"gOpenWindows.Console\" \
+	-DCVAR_CONTROLLER_CONFIGURATION_WINDOW_OPEN=\"gOpenWindows.ControllerConfiguration\" \
+	-DCVAR_CONTROLLER_DISCONNECTED_WINDOW_OPEN=\"gOpenWindows.ControllerDisconnected\" \
+	-DCVAR_CONTROLLER_REORDERING_WINDOW_OPEN=\"gOpenWindows.ControllerReordering\" \
+	-DCVAR_GFX_DEBUGGER_WINDOW_OPEN=\"gOpenWindows.GfxDebugger\" \
+	-DCVAR_STATS_WINDOW_OPEN=\"gOpenWindows.Stats\" \
+	-DCVAR_ENABLE_MULTI_VIEWPORTS=\"gSettings.EnableMultiViewports\" \
+	-DCVAR_LOW_RES_MODE=\"gSettings.LowResMode\" \
+	-DCVAR_SIMULATED_INPUT_LAG=\"gSettings.SimulatedInputLag\" \
+	-DCVAR_GAME_OVERLAY_FONT=\"gSettings.OverlayFont\" \
+	-DCVAR_MENU_BAR_OPEN=\"gSettings.OpenMenuBar\" \
+	-DCVAR_PREFIX_CONTROLLERS=\"gSettings.Controllers\" \
+	-DCVAR_PREFIX_ADVANCED_RESOLUTION=\"gSettings.AdvancedResolution\" \
+	-DCVAR_AUDIO_CHANNELS_SETTING=\"gAudioChannelsSetting\"
+
+CXXFLAGS := $(CFLAGS) -fexceptions -std=gnu++20 -fpermissive
+ASFLAGS  := $(CFLAGS)
+
+# -----------------------------------------------------------------------------
+# Libraries
+# -----------------------------------------------------------------------------
+# vitaGL/vitaShaRK/mathneon were already installed; the rest via `vdpm`.
+# storm and gfxd skipped on purpose: no MPQ/OTR support needed (loads from
+# ROM directly), no shader debugger needed on Vita.
+
+LIBS := -lstdc++ -lmathneon \
+	-Wl,--whole-archive -lpthread -Wl,--no-whole-archive \
+	-lyaml-cpp -ltinyxml2 -lSDL2 -lpng -lz -lbz2 -lzstd -llzma -lzip \
+	-lvorbisfile -lvorbis -logg -lssl -lcrypto \
+	-lvitaGL -lvitashark -lSceShaccCgExt -ltaihen_stub -lmathneon \
+	-lSceAudioIn_stub -lSceIme_stub -lSceKernelDmacMgr_stub -lSceGxm_stub \
+	-lSceDisplay_stub -lSceTouch_stub -lSceHid_stub -lSceCtrl_stub -lSceNet_stub \
+	-lSceNetCtl_stub -lSceCommonDialog_stub -lSceAudio_stub -lSceSysmodule_stub \
+	-lSceMotion_stub -lSceAppUtil_stub -lSceAppMgr_stub -lSceShaccCg_stub -lScePower_stub
+
+# -----------------------------------------------------------------------------
+# Build rules
+# -----------------------------------------------------------------------------
+
+all: $(TARGET).vpk
+
+$(TARGET).vpk: $(TARGET).velf
+	vita-make-fself -c -s $< eboot.bin
+	vita-mksfoex -s TITLE_ID=$(TITLE) -d ATTRIBUTE2=12 "$(TARGET)" param.sfo
+	vita-pack-vpk -s param.sfo -b eboot.bin $(TARGET).vpk \
+		-a livearea/icon0.png=sce_sys/icon0.png \
+		-a livearea/bg.png=sce_sys/livearea/contents/bg.png \
+		-a livearea/startup.png=sce_sys/livearea/contents/startup.png \
+		-a livearea/template.xml=sce_sys/livearea/contents/template.xml
+
+%.velf: %.elf
+	cp $< $<.unstripped.elf
+	$(STRIP) -g $<
+	vita-elf-create $< $@
+
+$(TARGET).elf: prepare
+	$(CXX) $(CXXFLAGS) f/*.o $(LIBS) -o $@
+
+# Compile normally first (keeps incremental rebuilds working), then copy
+# each .o into f/ under a short name for the final link.
+prepare: f $(OBJS_PREPARE)
+
+f:
+	mkdir -p f
+
+gen_num := 0
+%.ok: %.o
+	$(eval gen_num := $(shell echo $$(($(gen_num)+1))))
+	@cp $< f/$(gen_num).o
+	@touch $@
+
+%.o: %.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+%.o: %.cpp
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+objects: $(OBJS)
+
+clean:
+	@rm -rf f $(TARGET).elf $(TARGET).elf.unstripped.elf $(TARGET).velf eboot.bin $(TARGET).vpk param.sfo
+	@find src port libultraship -name '*.o' -delete
+	@find src port libultraship -name '*.ok' -delete
+
+.PHONY: all objects prepare clean
