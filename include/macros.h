@@ -127,14 +127,19 @@ typedef s32 Difficulty2D[AC_DIFFICULTY_LEN][2];
 
 #define LAST_DEMO_SCENE_IDX 18
 
-#ifdef PORT
+#if defined(PORT) && !defined(__vita__)
+// Desktop PORT builds are 64-bit: pointers embedded in these heaps are twice
+// the size the original N64 (32-bit) sizing assumed, so the heap has to grow
+// to hold the same number of objects.
 #define WORLD_ENTITY_HEAP_SIZE 0x5FFF0  // 4x for 64-bit pointer expansion
 #define COLLISION_HEAP_SIZE 0xC0000     // 8x for 64-bit pointer expansion + complex maps
 #else
+// Vita is 32-bit ARM, same pointer width as the original N64 target, so it
+// uses the original (non-doubled) sizes -- not the desktop 64-bit ones.
 #define WORLD_ENTITY_HEAP_SIZE 0x17FF0
 #define COLLISION_HEAP_SIZE 0x18000
 #endif
-#ifdef PORT
+#if defined(PORT) && !defined(__vita__)
 #define GENERAL_HEAP_SIZE 0x100000  // 3x for 64-bit pointer expansion + effect allocations
 #define SPRITE_HEAP_SIZE  0xC0000  // 3x for 64-bit pointer expansion in sprite structs
 #define BATTLE_HEAP_SIZE  0x4B000  // 2x for 64-bit pointer expansion

@@ -8,6 +8,11 @@
 #include <assert.h>
 #include <stdio.h>
 
+#ifdef __vita__
+#include <vitasdk.h>
+#include <vitaGL.h>
+#endif
+
 #include <any>
 #include <map>
 #include <set>
@@ -110,13 +115,24 @@ Interpreter::Interpreter() {
     mRsp = new RSP();
     mRdp = new RDP();
     mRdp->palette1_pal_index = -1;
+#ifdef __vita__
+    // vitaGL owns GL init on this platform: allocate its scratch buffer pool
+    // and bring up the GXM context here instead of a desktop GL context.
+    // Thresholds/resolution/MSAA match the proven Ghostship/2ship2harkinian config.
+    vglSetParamBufferSize(6 * 1024 * 1024);
+    vglInitWithCustomThreshold(0, 960, 544, 4 * 1024 * 1024, 0, 0, 0, SCE_GXM_MULTISAMPLE_4X);
+    mBufVbo = (float*)vglAllocFromScratch(10 * 1024 * 1024);
+#else
     mBufVbo = new float[MAX_TRI_BUFFER * (50 * 3)];
+#endif
 }
 
 Interpreter::~Interpreter() {
     delete mRsp;
     delete mRdp;
+#ifndef __vita__
     delete[] mBufVbo;
+#endif
 }
 
 static std::weak_ptr<Interpreter> mInstance;
@@ -130,6 +146,12 @@ void GfxSetInstance(std::shared_ptr<Interpreter> gfx) {
 void Interpreter::Flush() {
     if (mBufVboLen > 0) {
         mRapi->DrawTriangles(mBufVbo, mBufVboLen, mBufVboNumTris);
+#ifdef __vita__
+        // Advance into the scratch pool so this frame's already-submitted
+        // (possibly still in-flight on the GPU) vertex data isn't overwritten
+        // by the next flush.
+        mBufVbo += mBufVboLen;
+#endif
         mBufVboLen = 0;
         mBufVboNumTris = 0;
     }
@@ -1332,12 +1354,28 @@ void Interpreter::ImportTextureMask(int i, int tile) {
     mRapi->UploadTexture(mTexUploadBuffer, width, height);
 }
 
+#ifdef __vita__
+// Provided by the math-neon library (-lmathneon), same as Ghostship/2ship2harkinian.
+extern "C" {
+    void normalize3_neon(float v[3], float d[3]);
+    void matmul4_neon(float m0[16], float m1[16], float d[16]);
+};
+#endif
+
 void Interpreter::NormalizeVector(float v[3]) {
+#ifdef __vita__
+    // PaperShip guards the zero-vector case (SM64's Ghostship port doesn't) --
+    // keep that guard, just do the actual normalize on NEON.
+    float s = sqrtf(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+    if (s == 0.0f) return;
+    normalize3_neon(v, v);
+#else
     float s = sqrtf(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
     if (s == 0.0f) return;
     v[0] /= s;
     v[1] /= s;
     v[2] /= s;
+#endif
 }
 
 void Interpreter::TransposedMatrixMul(float res[3], const float a[3], const float b[4][4]) {
@@ -1347,6 +1385,9 @@ void Interpreter::TransposedMatrixMul(float res[3], const float a[3], const floa
 }
 
 void Interpreter::MatrixMul(float res[4][4], const float a[4][4], const float b[4][4]) {
+#ifdef __vita__
+    matmul4_neon((float*)b, (float*)a, (float*)res);
+#else
     float tmp[4][4];
     for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 4; j++) {
@@ -1354,6 +1395,7 @@ void Interpreter::MatrixMul(float res[4][4], const float a[4][4], const float b[
         }
     }
     memcpy(res, tmp, sizeof(tmp));
+#endif
 }
 
 void Interpreter::CalculateNormalDir(const F3DLight_t* light, float coeffs[3]) {
@@ -2179,10 +2221,18 @@ void Interpreter::GfxSpTri1(uint8_t vtx1_idx, uint8_t vtx2_idx, uint8_t vtx3_idx
         // mBufVbo[mBufVboLen++] = color->a / 255.0f;
     }
 
+#ifdef __vita__
+    // On Vita mBufVbo is a large scratch-pool allocation (not the small fixed
+    // MAX_TRI_BUFFER array used elsewhere), so there's no need to force a
+    // flush at that count -- Flush() is driven by frame/draw-call boundaries
+    // instead. Matches Ghostship/2ship2harkinian.
+    mBufVboNumTris++;
+#else
     if (++mBufVboNumTris == MAX_TRI_BUFFER) {
         // if (++mBufVbo_num_tris == 1) {
         Flush();
     }
+#endif
 }
 
 void Interpreter::GfxSpGeometryMode(uint32_t clear, uint32_t set) {
@@ -5150,6 +5200,11 @@ void Interpreter::EndFrame() {
     mWapi->SwapBuffersBegin();
     mRapi->FinishRender();
     mWapi->SwapBuffersEnd();
+#ifdef __vita__
+    // Grab a fresh scratch region for next frame -- Flush() only advances the
+    // pointer within the region handed out here, it never wraps on its own.
+    mBufVbo = (float*)vglAllocFromScratch(10 * 1024 * 1024);
+#endif
 }
 
 void gfx_set_target_ucode(UcodeHandlers ucode) {

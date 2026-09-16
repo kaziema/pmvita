@@ -27,6 +27,11 @@
 #include "fast/interpreter.h"
 #include "ship/config/ConsoleVariable.h"
 
+#ifdef __vita__
+#include <vitasdk.h>
+#include <vitaGL.h>
+#endif
+
 namespace Fast {
 int GfxRenderingAPIOGL::GetMaxTextureSize() {
     GLint max_texture_size;
@@ -651,24 +656,28 @@ void GfxRenderingAPIOGL::DrawTriangles(float buf_vbo[], size_t buf_vbo_len, size
     SetPerDrawUniforms();
 
     // printf("flushing %d tris\n", buf_vbo_num_tris);
+#ifdef __vita__
+    vglBufferData(GL_ARRAY_BUFFER, buf_vbo);
+#else
     glBufferData(GL_ARRAY_BUFFER, sizeof(float) * buf_vbo_len, buf_vbo, GL_STREAM_DRAW);
+#endif
     glDrawArrays(GL_TRIANGLES, 0, 3 * buf_vbo_num_tris);
 }
 
 void GfxRenderingAPIOGL::Init() {
-#ifndef __linux__
+#if !defined(__linux__) && !defined(__vita__)
     glewInit();
 #endif
 
     glGenBuffers(1, &mOpenglVbo);
     glBindBuffer(GL_ARRAY_BUFFER, mOpenglVbo);
 
-#if defined(__APPLE__) || defined(USE_OPENGLES)
+#if defined(__APPLE__) || (defined(USE_OPENGLES) && !defined(__vita__))
     glGenVertexArrays(1, &mOpenglVao);
     glBindVertexArray(mOpenglVao);
 #endif
 
-#ifndef USE_OPENGLES // not supported on gles
+#if !defined(USE_OPENGLES) && !defined(__vita__) // not supported on gles
     glEnable(GL_DEPTH_CLAMP);
 #endif
     glDepthFunc(GL_LEQUAL);
@@ -687,8 +696,11 @@ void GfxRenderingAPIOGL::Init() {
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
     mPixelDepthRbSize = 1;
-
+#ifdef __vita__
+    mMaxMsaaLevel = 1;
+#else
     glGetIntegerv(GL_MAX_SAMPLES, &mMaxMsaaLevel);
+#endif
 }
 
 void GfxRenderingAPIOGL::OnResize() {
@@ -699,7 +711,9 @@ void GfxRenderingAPIOGL::StartFrame() {
 }
 
 void GfxRenderingAPIOGL::EndFrame() {
+#ifndef __vita__
     glFlush();
+#endif
 }
 
 void GfxRenderingAPIOGL::FinishRender() {
@@ -744,7 +758,11 @@ void GfxRenderingAPIOGL::UpdateFramebufferParameters(int fb_id, uint32_t width, 
 
     width = std::max(width, 1U);
     height = std::max(height, 1U);
+#ifdef __vita__
+    msaa_level = 1;
+#else
     msaa_level = std::min(msaa_level, (uint32_t)mMaxMsaaLevel);
+#endif
 
     glBindFramebuffer(GL_FRAMEBUFFER, fb.fbo);
 
@@ -756,10 +774,12 @@ void GfxRenderingAPIOGL::UpdateFramebufferParameters(int fb_id, uint32_t width, 
                 glBindTexture(GL_TEXTURE_2D, 0);
                 glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, fb.clrbuf, 0);
             } else {
+#ifndef __vita__
                 glBindRenderbuffer(GL_RENDERBUFFER, fb.clrbufMsaa);
                 glRenderbufferStorageMultisample(GL_RENDERBUFFER, msaa_level, GL_RGB8, width, height);
                 glBindRenderbuffer(GL_RENDERBUFFER, 0);
                 glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, fb.clrbufMsaa);
+#endif
             }
         }
 
@@ -769,7 +789,9 @@ void GfxRenderingAPIOGL::UpdateFramebufferParameters(int fb_id, uint32_t width, 
             if (msaa_level <= 1) {
                 glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, width, height);
             } else {
+#ifndef __vita__
                 glRenderbufferStorageMultisample(GL_RENDERBUFFER, msaa_level, GL_DEPTH24_STENCIL8, width, height);
+#endif
             }
             glBindRenderbuffer(GL_RENDERBUFFER, 0);
         }
@@ -859,6 +881,7 @@ void GfxRenderingAPIOGL::CopyFramebuffer(int fb_dst_id, int fb_src_id, int srcX0
 
     // For msaa enabled buffers we can't perform a scaled blit to a simple sample buffer
     // First do an unscaled blit to a msaa resolved buffer
+#ifndef __vita__
     if (src.height != dst.height && src.width != dst.width && src.msaa_level > 1) {
         // Start with the main buffer (0) as the msaa resolved buffer
         int fb_resolve_id = 0;
@@ -879,6 +902,7 @@ void GfxRenderingAPIOGL::CopyFramebuffer(int fb_dst_id, int fb_src_id, int srcX0
         fb_src_id = fb_resolve_id;
         src = fb_resolve;
     }
+#endif
 
     glBindFramebuffer(GL_READ_FRAMEBUFFER, src.fbo);
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, dst.fbo);
@@ -912,6 +936,11 @@ void GfxRenderingAPIOGL::ReadFramebufferToCPU(int fb_id, uint32_t width, uint32_
 std::unordered_map<std::pair<float, float>, uint16_t, hash_pair_ff>
 GfxRenderingAPIOGL::GetPixelDepth(int fb_id, const std::set<std::pair<float, float>>& coordinates) {
     std::unordered_map<std::pair<float, float>, uint16_t, hash_pair_ff> res;
+#ifdef __vita__
+    // vitaGL doesn't support the depth-stencil readback this needs; callers
+    // treat an empty map as "no depth info available" (matches Ghostship).
+    return res;
+#endif
 
     FramebufferOGL& fb = mFrameBuffers[fb_id];
 
@@ -922,7 +951,7 @@ GfxRenderingAPIOGL::GetPixelDepth(int fb_id, const std::set<std::pair<float, flo
         glBindFramebuffer(GL_FRAMEBUFFER, fb.fbo);
         int x = coordinates.begin()->first;
         int y = coordinates.begin()->second;
-#ifndef USE_OPENGLES // not supported on gles. Runs fine without it, but this may cause issues
+#if !defined(USE_OPENGLES) && !defined(__vita__) // not supported on gles. Runs fine without it, but this may cause issues
         glReadPixels(x, fb.invertY ? fb.height - y : y, 1, 1, GL_DEPTH_STENCIL, GL_UNSIGNED_INT_24_8,
                      &depth_stencil_value);
 #endif
@@ -962,7 +991,7 @@ GfxRenderingAPIOGL::GetPixelDepth(int fb_id, const std::set<std::pair<float, flo
 
         glBindFramebuffer(GL_READ_FRAMEBUFFER, mPixelDepthFb);
         std::vector<uint32_t> depth_stencil_values(coordinates.size());
-#ifndef USE_OPENGLES // not supported on gles. Runs fine without it, but this may cause issues
+#if !defined(USE_OPENGLES) && !defined(__vita__) // not supported on gles. Runs fine without it, but this may cause issues
         glReadPixels(0, 0, coordinates.size(), 1, GL_DEPTH_STENCIL, GL_UNSIGNED_INT_24_8, depth_stencil_values.data());
 #endif
         {
@@ -979,6 +1008,10 @@ GfxRenderingAPIOGL::GetPixelDepth(int fb_id, const std::set<std::pair<float, flo
 }
 
 void GfxRenderingAPIOGL::SetTextureFilter(FilteringMode mode) {
+#ifdef __vita__
+    if (mode == FILTER_THREE_POINT)
+        mode = FILTER_LINEAR;
+#endif
     gfx_texture_cache_clear();
     mCurrentFilterMode = mode;
 }

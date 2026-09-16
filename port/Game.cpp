@@ -18,6 +18,14 @@
 #ifdef __APPLE__
 #include <execinfo.h>
 #endif
+#ifdef __vita__
+#include <vitasdk.h>
+#include <pthread.h>
+// vitasdk's newlib heap defaults to well under what a game this size needs.
+// Ghostship (SM64) and 2ship2harkinian (OoT/MM) both use this exact value on
+// the same libultraship stack -- treat it as the proven baseline, not a guess.
+int _newlib_heap_size_user = 256 * 1024 * 1024;
+#endif
 
 extern "C" {
 #include "common.h"
@@ -261,8 +269,33 @@ void boot_main_pc() {
     nuGfxDisplayOn();
 }
 
+#ifdef __vita__
+extern "C" void *vita_main(void *argv);
+#endif
+
 #ifdef _WIN32
 int SDL_main(int argc, char** argv) {
+#elif defined(__vita__)
+int main(int argc, char* argv[]) {
+    // Vita's main thread has a small default stack, and the whole game loop
+    // below runs for the process lifetime -- same pattern Ghostship and
+    // 2ship2harkinian use: bump clocks, hand off to a properly-stacked
+    // worker thread, and let main() just wait it out.
+    scePowerSetArmClockFrequency(444);
+    scePowerSetBusClockFrequency(222);
+    scePowerSetGpuClockFrequency(222);
+    scePowerSetGpuXbarClockFrequency(166);
+    sceIoMkdir("ux0:data/papership", 0777);
+
+    pthread_t t;
+    pthread_attr_t attr;
+    pthread_attr_init(&attr);
+    pthread_attr_setstacksize(&attr, 2 * 1024 * 1024);
+    pthread_create(&t, &attr, vita_main, NULL);
+    return sceKernelExitDeleteThread(0);
+}
+
+extern "C" void *vita_main(void *argv) {
 #else
 int main(int argc, char* argv[]) {
 #endif
@@ -297,7 +330,14 @@ int main(int argc, char* argv[]) {
     signal(SIGABRT, crashHandler);
 
     // Initialize the engine (creates Ship::Context, window, resource manager)
+#ifdef __vita__
+    // vita_main() only receives the pthread argv blob (unused), not real
+    // argc/argv -- there's no command line on Vita.
+    (void)argv;
+    GameEngine::Create(0, nullptr);
+#else
     GameEngine::Create(argc, argv);
+#endif
 
     // Run Paper Mario's boot sequence (without the infinite loop)
     boot_main_pc();
@@ -325,5 +365,9 @@ int main(int argc, char* argv[]) {
     fprintf(stderr, "[main] exited after %d frames\n", loopCount);
 
     GameEngine::Instance->Destroy();
+#ifdef __vita__
+    return NULL;
+#else
     return 0;
+#endif
 }
