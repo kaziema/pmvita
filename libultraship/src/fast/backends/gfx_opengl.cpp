@@ -30,6 +30,10 @@
 #ifdef __vita__
 #include <vitasdk.h>
 #include <vitaGL.h>
+// vitaGL doesn't define this one; standard GL enum value.
+#ifndef GL_MIRROR_CLAMP_TO_EDGE
+#define GL_MIRROR_CLAMP_TO_EDGE 0x8743
+#endif
 #endif
 
 namespace Fast {
@@ -1025,7 +1029,9 @@ void GfxRenderingAPIOGL::SetSrgbMode() {
 }
 
 ImTextureID GfxRenderingAPIOGL::GetTextureById(int id) {
-    return reinterpret_cast<ImTextureID>(id);
+    // ImTextureID is ImU64 in this imgui version, not a pointer -- plain
+    // value cast, not a pointer reinterpretation.
+    return static_cast<ImTextureID>(id);
 }
 } // namespace Fast
 #endif

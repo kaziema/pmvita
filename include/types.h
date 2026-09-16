@@ -7,8 +7,13 @@
 #include <stdint.h>
 
 #ifndef __cplusplus
+// Macro wins over vitasdk's native C23 nullptr keyword, so this decomp's
+// assumption that nullptr is a plain (void*)0 still holds on Vita.
 #define nullptr ((void*)0)
+// vitasdk's GCC already provides nullptr_t natively (C23 feature).
+#ifndef __vita__
 typedef void* nullptr_t;
+#endif
 #endif
 
 #define UNK_TYPE s32

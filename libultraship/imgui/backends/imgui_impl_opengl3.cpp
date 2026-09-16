@@ -147,6 +147,8 @@
 #if defined(IMGUI_IMPL_OPENGL_ES2)
 #if (defined(__APPLE__) && (TARGET_OS_IOS || TARGET_OS_TV))
 #include <OpenGLES/ES2/gl.h>    // Use GL ES 2
+#elif defined(__vita__)
+#include <vitaGL.h>             // vitaGL is the whole GL surface here
 #else
 #include <GLES2/gl2.h>          // Use GL ES 2
 #endif
@@ -944,8 +946,10 @@ bool    ImGui_ImplOpenGL3_CreateDeviceObjects()
     glLinkProgram(bd->ShaderHandle);
     CheckProgram(bd->ShaderHandle, "shader program");
 
+#ifndef __vita__ // vitaGL doesn't implement glDetachShader; not required after linking
     glDetachShader(bd->ShaderHandle, vert_handle);
     glDetachShader(bd->ShaderHandle, frag_handle);
+#endif
     glDeleteShader(vert_handle);
     glDeleteShader(frag_handle);
 

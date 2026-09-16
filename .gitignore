@@ -12,7 +12,6 @@ out/
 
 # Generated files
 properties.h
-port/build.c
 
 # ROM and archives (user-provided)
 *.z64
@@ -39,3 +38,12 @@ mods/*.otr
 *.app
 *.nro
 *.appimage
+
+# Vita build output
+*.elf
+*.velf
+*.vpk
+*.ok
+eboot.bin
+param.sfo
+f/

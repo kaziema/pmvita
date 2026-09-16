@@ -751,7 +751,7 @@ void Gui::DrawGame() {
     uintptr_t fb = Ship::Context::GetInstance()->GetWindow()->GetGfxFrameBuffer();
     if (fb) {
         ImGui::SetCursorPos(pos);
-        ImGui::Image(reinterpret_cast<ImTextureID>(fb), size);
+        ImGui::Image(static_cast<ImTextureID>(fb), size);
     }
 
     ImGui::End();
@@ -825,7 +825,7 @@ bool Gui::HasTextureByName(const std::string& name) {
 
 ImTextureID Gui::GetTextureByName(const std::string& name) {
     if (!Gui::HasTextureByName(name)) {
-        return nullptr;
+        return 0; // ImTextureID is ImU64 here, not a pointer
     }
     return GetTextureById(mGuiTextures[name].RendererTextureId);
 }

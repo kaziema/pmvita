@@ -238,6 +238,7 @@ void PaperShipMenu::DrawElement() {
     ImGui::Separator();
     ImGui::Spacing();
     if (ImGui::Button("Restart Game", ImVec2(-1, 0))) {
+#ifdef __APPLE__
         // Re-launch the executable and exit current process
         SDL_Window* wnd = GetSDLWindow();
         if (wnd) SDL_SetWindowFullscreen(wnd, 0);
@@ -246,6 +247,8 @@ void PaperShipMenu::DrawElement() {
         if (_NSGetExecutablePath(path, &size) == 0) {
             execl(path, path, nullptr);
         }
+#endif
+        // No self-relaunch on this platform, just quit.
         exit(0);
     }
     if (ImGui::Button("Exit Game", ImVec2(-1, 0))) {

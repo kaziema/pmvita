@@ -16,6 +16,11 @@
 #elif __APPLE__
 #include <SDL2/SDL.h>
 #include <GL/glew.h>
+#elif defined(__vita__)
+// vitaGL is the whole GL surface here -- SDL_opengl.h declares the same
+// functions with slightly different signatures and conflicts with it.
+#include <SDL2/SDL.h>
+#include <vitaGL.h>
 #elif USE_OPENGLES
 #include <SDL2/SDL.h>
 #include <GLES3/gl3.h>

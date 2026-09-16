@@ -5,6 +5,7 @@
 #include <unordered_map>
 #include <set>
 #include "imconfig.h"
+#include "imgui.h" // for ImTextureID
 
 namespace Fast {
 struct ShaderProgram;

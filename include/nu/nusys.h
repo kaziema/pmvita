@@ -510,6 +510,10 @@ typedef struct st_ContRead {
     OSContPad*	pad;
 } NUContReadMesg;
 
+// vitasdk's errno is a macro (expands to a function call), which breaks a
+// struct field literally named errno. Undef it just for this struct.
+#pragma push_macro("errno")
+#undef errno
 typedef struct st_ContData {
     u16	button;			/* A,B,C,Z,L,R,START,PAD ,button 	*/
     s8	stick_x;		/* Range acutally used:   -61 <= stick X <= 61	*/
@@ -517,6 +521,7 @@ typedef struct st_ContData {
     u8	errno;		/* Error				*/
     u16	trigger;		/* Button trigger data		*/
 } NUContData;
+#pragma pop_macro("errno")
 
 typedef struct st_ContQuery {
     NUScMsg	mesg;

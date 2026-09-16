@@ -23,6 +23,11 @@
 #include <SDL.h>
 #include "fast/backends/gfx_metal.h"
 #include "ship/utils/macUtils.h"
+#elif defined(__vita__)
+// vitasdk has no GLES2/gl2platform.h, so SDL_opengles2.h won't compile here.
+// vitaGL is the GL surface on this platform.
+#include <SDL2/SDL.h>
+#include <vitaGL.h>
 #else
 #include <SDL2/SDL.h>
 #define GL_GLEXT_PROTOTYPES 1
