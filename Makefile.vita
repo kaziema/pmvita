@@ -192,7 +192,20 @@ LIBS := -lstdc++ \
 
 all: $(TARGET).vpk
 
-$(TARGET).vpk: $(TARGET).velf
+# Caught the hard way once already: sce_sys images have to be 8-bit indexed
+# PNGs (no alpha), not RGBA truecolor, or the Vita installer fails with
+# 0x8010113D. Check this myself before ever handing over a VPK to test.
+check-livearea:
+	@for f in livearea/icon0.png livearea/bg.png livearea/startup.png; do \
+		if ! file "$$f" | grep -q "8-bit colormap"; then \
+			echo "ERROR: $$f is not 8-bit indexed (Vita install will fail with 0x8010113D)"; \
+			file "$$f"; \
+			exit 1; \
+		fi; \
+	done
+	@echo "livearea images OK (8-bit indexed)"
+
+$(TARGET).vpk: $(TARGET).velf check-livearea
 	vita-make-fself -c -s $< eboot.bin
 	vita-mksfoex -s TITLE_ID=$(TITLE) -d ATTRIBUTE2=12 "$(TARGET)" param.sfo
 	vita-pack-vpk -s param.sfo -b eboot.bin $(TARGET).vpk \
@@ -237,4 +250,4 @@ clean:
 	@find src port libultraship -name '*.o' -delete
 	@find src port libultraship -name '*.ok' -delete
 
-.PHONY: all objects prepare clean
+.PHONY: all objects prepare clean check-livearea

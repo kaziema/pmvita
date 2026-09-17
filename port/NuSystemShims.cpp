@@ -424,6 +424,11 @@ static void nuPiReadRom_OpenRomFile(void) {
         exeDir,
         exeDir + "/..",
         exeDir + "/../..",
+#ifdef __vita__
+        // app0: (the VPK package itself) is read-only -- the ROM has to
+        // live on the memory card, same place the save data does.
+        "ux0:data/papership",
+#endif
     };
 
     for (auto& dir : search_dirs) {

@@ -296,6 +296,12 @@ extern "C" void *vita_main(void *argv) {
 #else
 int main(int argc, char* argv[]) {
 #endif
+#ifdef __vita__
+    // stderr goes nowhere on real hardware with nothing attached to catch
+    // it -- redirect it to a file so every fprintf checkpoint below is
+    // actually readable after the fact.
+    freopen("ux0:data/papership/log.txt", "w", stderr);
+#endif
     // Make stderr unbuffered so all log messages are visible immediately
     setvbuf(stderr, nullptr, _IONBF, 0);
 
@@ -306,7 +312,11 @@ int main(int argc, char* argv[]) {
         // Dump worker and audio debug info
         worker_dump_last();
         // Also write to a file so crash info is always accessible
+#ifdef __vita__
+        FILE* crashFile = fopen("ux0:data/papership/crash.log", "w");
+#else
         FILE* crashFile = fopen("/tmp/papership_crash.log", "w");
+#endif
 #ifdef __APPLE__
         void* callstack[64];
         int frames = backtrace(callstack, 64);
