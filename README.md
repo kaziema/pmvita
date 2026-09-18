@@ -23,8 +23,6 @@ This is a clean-room port built entirely from the publicly available [Paper Mari
 
 ## Current Status
 
-**Not playable yet.** Zero hours on real hardware, no Vita build target exists, nothing has been compiled for Vita. This is early groundwork.
-
 Done so far:
 - Fixed a heap-sizing bug where Vita would have silently inherited 64-bit desktop heap sizes instead of the correct 32-bit N64-original ones
 - Vita boot path wired into the entry point: heap allocation, max CPU/GPU clocks, game loop moved onto a properly-stacked worker thread
