@@ -1,4 +1,7 @@
 #include "common.h"
+#ifdef PORT
+#include <stdio.h>
+#endif
 
 #define INTRO_MSG_BLANK -1
 
@@ -85,6 +88,19 @@ void N(UpdateIntroMessages)(IntroMessage** introMessageLists) {
     opacity = ((N(IntroMessageAlpha) * (255.0f - zoom1) * (255.0f - zoom2)) / 255.0f) / 255.0f;
     if (opacity > 0) {
         messageID = N(CurMessageList)->messageID;
+#ifdef PORT
+        // Intro message IDs are 1..0x1A or INTRO_MSG_BLANK. Anything else means
+        // CurMessageList is corrupt, and draw_msg would treat it as a pointer.
+        if (messageID != 0 && messageID != INTRO_MSG_BLANK && (u32)messageID > 0xFFFF) {
+            static s32 sBadMsgLogCount = 0;
+            if (sBadMsgLogCount++ < 5) {
+                fprintf(stderr, "[narrator] bad messageID=0x%X cur=%p state=%d alpha=%d idx=%d\n",
+                        messageID, (void*)N(CurMessageList), (int)N(IntroMessageState),
+                        (int)N(IntroMessageAlpha), (int)IntroMessageIdx);
+            }
+            return;
+        }
+#endif
         if (messageID != 0) {
 #if VERSION_JP
             draw_msg(N(CurMessageList)->messageID, 0, 200, opacity, -1, 0);
