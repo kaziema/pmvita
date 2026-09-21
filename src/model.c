@@ -2886,6 +2886,10 @@ void render_models(void) {
 
     // PORT: Widen culling X bounds for widescreen aspect ratios
     f32 xBoundsNDC = GameEngine_GetAspectRatio() / (4.0f / 3.0f);
+    if (camera->viewportW > 0) {
+        // The world viewport is narrower than the 320px frame, so more of it shows sideways.
+        xBoundsNDC *= (f32)SCREEN_WIDTH / (f32)camera->viewportW;
+    }
     if (xBoundsNDC < 1.0f) {
         xBoundsNDC = 1.0f;
     }

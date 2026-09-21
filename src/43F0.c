@@ -64,6 +64,10 @@ f32 length2D(f32 x, f32 y) {
     return sqrtf(SQ(x) + SQ(y));
 }
 
+#ifdef PORT
+extern void port_watch_check(const char* step);
+#endif
+
 HeapNode* _heap_create(HeapNode* addr, u32 size) {
     if (size < 32) {
         return (HeapNode*)-1;
@@ -146,10 +150,82 @@ void* _heap_malloc(HeapNode* head, u32 size) {
             heap_nextMallocID = HeapEntryID2 + 1;
             pPrevHeapNode->entryID = HeapEntryID2;
         }
+#ifdef PORT
+        port_watch_check("_heap_malloc");
+#endif
         return (u8*)pPrevHeapNode + sizeof(HeapNode);
     }
     return nullptr;
 }
+
+#ifdef PORT
+extern HeapNode heap_generalHead;
+extern HeapNode heap_spriteHead;
+extern HeapNode heap_collisionHead;
+
+// Walks one heap's node list and logs the first inconsistency, once. Diagnostic only.
+static s32 port_heap_validate(HeapNode* head, u32 arenaSize, const char* name, s32* reported) {
+    u8* lo = (u8*)head;
+    u8* hi = lo + arenaSize;
+    HeapNode* prev = nullptr;
+    HeapNode* node = head;
+    const char* why = nullptr;
+    s32 count = 0;
+
+    while (node != nullptr) {
+        u8* n = (u8*)node;
+        if (n < lo || n + sizeof(HeapNode) > hi || ((uintptr_t)n & 0xF) != 0) {
+            why = "node outside arena";
+            break;
+        }
+        if (++count > 200000) {
+            why = "list does not end";
+            break;
+        }
+        if (node->next != nullptr) {
+            if ((u8*)node->next <= n) {
+                why = "next is not after node";
+                break;
+            }
+            if (n + sizeof(HeapNode) + node->length != (u8*)node->next) {
+                why = "length does not reach next";
+                break;
+            }
+        } else if (n + sizeof(HeapNode) + node->length > hi) {
+            why = "last node overruns arena";
+            break;
+        }
+        prev = node;
+        node = node->next;
+    }
+
+    if (why == nullptr) {
+        return 1;
+    }
+    if (!*reported) {
+        *reported = 1;
+        fprintf(stderr, "[heapcheck] %s heap CORRUPT (%s) at node #%d: node=%p arena=%p..%p\n", name, why, count,
+                (void*)node, (void*)lo, (void*)hi);
+        if (prev != nullptr) {
+            fprintf(stderr, "[heapcheck]   prev=%p next=%p len=0x%X allocated=%d entry=%d\n", (void*)prev,
+                    (void*)prev->next, prev->length, prev->allocated, prev->entryID);
+        }
+        if ((u8*)node >= lo && (u8*)node + sizeof(HeapNode) <= hi) {
+            fprintf(stderr, "[heapcheck]   node next=%p len=0x%X allocated=%d entry=%d\n", (void*)node->next,
+                    node->length, node->allocated, node->entryID);
+        }
+    }
+    return 0;
+}
+
+void port_heap_check_all(void) {
+    static s32 sGeneral, sSprite, sCollision;
+
+    port_heap_validate(&heap_generalHead, GENERAL_HEAP_SIZE, "general", &sGeneral);
+    port_heap_validate(&heap_spriteHead, SPRITE_HEAP_SIZE, "sprite", &sSprite);
+    port_heap_validate(&heap_collisionHead, COLLISION_HEAP_SIZE, "collision", &sCollision);
+}
+#endif
 
 void* _heap_malloc_tail(HeapNode* head, u32 size) {
     HeapNode* curNode;
@@ -279,6 +355,9 @@ u32 _heap_free(HeapNode* heapNodeList, void* addrToFree) {
     outNode->next = nextNode;
     outNode->length = curNodeLength;
     outNode->allocated = false;
+#ifdef PORT
+    port_watch_check("_heap_free");
+#endif
     return false;
 }
 

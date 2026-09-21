@@ -267,13 +267,24 @@ void PaperShipGui::SetupMenu() {
     gui->SetMenu(menu);
     menu->Hide();
 
-    // Force N64 4:3 display mode — the GUI draws the game framebuffer at 4:3
-    // with pillarboxing in widescreen windows
+#ifdef PORT_FORCE_4X3
+    // Native 4:3 build: the GUI draws the game framebuffer at 4:3 with pillarboxing
+    // in widescreen windows
     CVarSetInteger(CVAR_SETTING("LowResMode"), 1);
+#else
+    // Widescreen build: fill the whole window. This also overrides a saved value of 1.
+    CVarSetInteger(CVAR_SETTING("LowResMode"), 0);
+#endif
 
+#ifdef __vita__
+    // The Vita renders at its native 960x544. A 2x internal resolution would be a
+    // 1920x1090 render target, which is too heavy for its memory and GPU.
+    float savedRes = 1.0f;
+#else
     // Apply saved internal resolution on startup (minimum 2x to avoid 1x rendering artifacts)
     float savedRes = CVarGetFloat(PS_CVAR_INTERNAL_RES, 2.0f);
     if (savedRes < 2.0f) savedRes = 2.0f;
+#endif
     Ship::Context::GetInstance()->GetWindow()->SetResolutionMultiplier(savedRes);
 
 }

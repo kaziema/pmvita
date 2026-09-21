@@ -1,6 +1,10 @@
 #include "common.h"
 #ifdef PORT
 #include <stdio.h>
+extern void port_heap_check_all(void);
+extern void* volatile* gPortWatchAddr;
+extern void* gPortWatchVal;
+extern void port_watch_check(const char* step);
 #endif
 
 #define INTRO_MSG_BLANK -1
@@ -30,6 +34,10 @@ void N(UpdateIntroMessages)(IntroMessage** introMessageLists) {
     s32 opacity;
     s32 yOffset;
     static s32 N(IntroMessageDelay);
+
+#ifdef PORT
+    port_heap_check_all();
+#endif
 
     if (N(CurMessageList) == nullptr) {
         N(CurMessageList) = introMessageLists[IntroMessageIdx];
@@ -106,10 +114,31 @@ void N(UpdateIntroMessages)(IntroMessage** introMessageLists) {
             draw_msg(N(CurMessageList)->messageID, 0, 200, opacity, -1, 0);
 #else
             yOffset = 0;
+#ifdef PORT
+            gPortWatchAddr = (void* volatile*)&N(CurMessageList);
+            gPortWatchVal = (void*)N(CurMessageList);
+#endif
             if (get_msg_lines(messageID) >= 2) {
                 yOffset = -7;
             }
+#ifdef PORT
+            port_watch_check("narrator: get_msg_lines returned");
+            gPortWatchAddr = NULL;
+#endif
+#ifdef PORT
+            // The ID gets read again after get_msg_lines(), and on Vita that second read came
+            // back as garbage. Log it, and draw with the ID that passed the check above.
+            if (N(CurMessageList)->messageID != messageID) {
+                static s32 sChangedLogCount = 0;
+                if (sChangedLogCount++ < 5) {
+                    fprintf(stderr, "[narrator] messageID changed during get_msg_lines: was 0x%X now 0x%X at %p\n",
+                            messageID, N(CurMessageList)->messageID, (void*)N(CurMessageList));
+                }
+            }
+            draw_msg(messageID, 0, yOffset + 196, opacity, -1, 0);
+#else
             draw_msg(N(CurMessageList)->messageID, 0, yOffset + 196, opacity, -1, 0);
+#endif
 #endif
         }
     }

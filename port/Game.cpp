@@ -24,6 +24,11 @@
 // vitasdk's default newlib heap is too small for this game. Ghostship and
 // 2ship2harkinian both use this exact value on the same libultraship stack.
 int _newlib_heap_size_user = 256 * 1024 * 1024;
+
+// The code segment ends close to a 64KB boundary, and vita-elf-create needs about 4.4KB of
+// free space after it. When the code lands within that window the build fails with "segment 1
+// overlaps". I pad the code segment so it sits well clear of the boundary.
+extern "C" __attribute__((used)) const unsigned char port_text_segment_padding[24 * 1024] = { 0 };
 #endif
 
 extern "C" {
@@ -50,6 +55,9 @@ s16 get_game_mode(void);
 
 // Simulate N64 framebuffer cycling (NuSystemShims.cpp)
 void port_cycle_framebuffer(void);
+
+// Writes the save file if a save touched it this frame (os_stubs.c)
+void port_flash_flush_if_dirty(void);
 
 // Worker crash diagnostics
 void worker_dump_last(void);
@@ -187,6 +195,8 @@ void push_frame() {
             fpsFrameCount = 0;
         }
     }
+
+    port_flash_flush_if_dirty();
 
     // Simulate N64 framebuffer cycling — game code compares nuGfxCfb[N] vs
     // nuGfxCfb_ptr for synchronization (e.g., battle init waits for specific buffer).
@@ -353,6 +363,14 @@ int main(int argc, char* argv[]) {
 #endif
         if (crashFile) { fclose(crashFile); }
         fflush(stderr);
+#ifdef __vita__
+        // abort() lands here and would exit with no dump. Fault on purpose so the system
+        // writes a .psp2dmp whose stack still shows who called abort().
+        if (sig == SIGABRT) {
+            volatile int* p = nullptr;
+            *p = 0;
+        }
+#endif
         _exit(1);
     };
     signal(SIGSEGV, crashHandler);

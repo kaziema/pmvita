@@ -6,6 +6,10 @@
 #include "overlay.h"
 #ifdef PORT
 #include <stdio.h>
+extern float GameEngine_GetAspectRatio(void);
+// On a wide window the background and world fill the whole width, so the black side borders
+// of the original 296px frame must not be drawn over them.
+#define PORT_IS_WIDESCREEN() (GameEngine_GetAspectRatio() > (4.0f / 3.0f) + 0.01f)
 #endif
 
 extern s32 gPauseBackgroundFade;
@@ -499,12 +503,20 @@ void gfx_draw_background(void) {
                 gDPNoOp(gMainGfxPos++);
             }
 
+#ifdef PORT
+            if (backgroundMinX > 0 && !PORT_IS_WIDESCREEN()) {
+#else
             if (backgroundMinX > 0) {
+#endif
                 gDPFillRectangle(gMainGfxPos++, 0, backgroundMinY, backgroundMinX - 1, backgroundMaxY - 1);
                 gDPNoOp(gMainGfxPos++);
             }
 
+#ifdef PORT
+            if (backgroundMaxX < SCREEN_WIDTH && !PORT_IS_WIDESCREEN()) {
+#else
             if (backgroundMaxX < SCREEN_WIDTH) {
+#endif
                 gDPFillRectangle(gMainGfxPos++, backgroundMaxX, backgroundMinY, SCREEN_WIDTH - 1, backgroundMaxY - 1);
                 gDPNoOp(gMainGfxPos++);
             }

@@ -5,6 +5,42 @@
 #include "../port/endian.h"
 #include <stdio.h>
 extern void gfx_texture_cache_clear(void);
+extern float GameEngine_GetAspectRatio(void);
+
+static void port_draw_bg_ext_rect(s32 x0, s32 x1, s32 y0, s32 y1, s32 texel) {
+    if (x1 < x0) {
+        return;
+    }
+    gSPWideTextureRectangle(gMainGfxPos++, x0 * 4, y0 * 4, x1 * 4, y1 * 4, G_TX_RENDERTILE, texel * 32, 0, 4096, 1024);
+}
+
+// The background is a panorama that wraps every bgMaxX pixels. On a window wider than 4:3 I keep
+// drawing it past both edges of the original strip, continuing the wrap, so it reaches the
+// window edges. extra is how many pixels past each edge of the 320px frame need covering.
+static void port_draw_bg_extension(s32 bgMinX, s32 bgMaxX, s32 bgXOffset, s32 extra, s32 y0, s32 y1) {
+    s32 t0 = (bgMaxX - bgXOffset) % bgMaxX; // texel shown at x = bgMinX
+    s32 extL = bgMinX + extra;
+    s32 extR = SCREEN_WIDTH + extra - (bgMinX + bgMaxX);
+    s32 d1;
+    s32 rem;
+    s32 la;
+
+    if (extL > 0) {
+        d1 = extL < t0 ? extL : t0;
+        port_draw_bg_ext_rect(bgMinX - d1, bgMinX - 1, y0, y1, t0 - d1);
+        rem = extL - d1;
+        if (rem > 0) {
+            port_draw_bg_ext_rect(bgMinX - extL, bgMinX - d1 - 1, y0, y1, bgMaxX - rem);
+        }
+    }
+    if (extR > 0) {
+        la = extR < bgMaxX - t0 ? extR : bgMaxX - t0;
+        port_draw_bg_ext_rect(bgMinX + bgMaxX, bgMinX + bgMaxX + la - 1, y0, y1, t0);
+        if (extR - la > 0) {
+            port_draw_bg_ext_rect(bgMinX + bgMaxX + la, bgMinX + bgMaxX + extR - 1, y0, y1, 0);
+        }
+    }
+}
 #endif
 
 char gCloudyFlowerFieldsBg[] = "fla_bg";
@@ -297,6 +333,16 @@ void appendGfx_background_texture(void) {
     bgMinX = gGameStatusPtr->backgroundMinX;
     bgMinY = gGameStatusPtr->backgroundMinY;
 
+#ifdef PORT
+    s32 wideExtra = 0;
+    {
+        f32 aspect = GameEngine_GetAspectRatio();
+        if (aspect > (4.0f / 3.0f) + 0.01f) {
+            wideExtra = (s32)(120.0f * aspect - 160.0f) + 2;
+        }
+    }
+#endif
+
     gDPPipeSync(gMainGfxPos++);
     gDPSetCycleType(gMainGfxPos++, G_CYC_COPY);
     gDPSetTexturePersp(gMainGfxPos++, G_TP_NONE);
@@ -332,6 +378,12 @@ void appendGfx_background_texture(void) {
             gSPTextureRectangle(gMainGfxPos++, (bgXOffset + bgMinX) * 4, (lineHeight * i + bgMinY) * 4,
                                                  (bgMaxX + bgMinX - 1) * 4, (lineHeight * i + lineHeight - 1 + bgMinY) * 4,
                                                  G_TX_RENDERTILE, 0, 0, 4096, 1024);
+#ifdef PORT
+            if (wideExtra > 0) {
+                port_draw_bg_extension(bgMinX, bgMaxX, bgXOffset, wideExtra, lineHeight * i + bgMinY,
+                                       lineHeight * i + lineHeight - 1 + bgMinY);
+            }
+#endif
         }
         if (extraHeight != 0) {
             texOffsetY = gBackroundTextureYOffset + lineHeight * i;
@@ -348,6 +400,12 @@ void appendGfx_background_texture(void) {
             gSPTextureRectangle(gMainGfxPos++, (bgXOffset + bgMinX) * 4, (lineHeight * i + bgMinY) * 4,
                                                  (bgMaxX + bgMinX - 1) * 4, (bgMaxY - 1 + bgMinY) * 4,
                                                  G_TX_RENDERTILE, 0, 0, 4096, 1024);
+#ifdef PORT
+            if (wideExtra > 0) {
+                port_draw_bg_extension(bgMinX, bgMaxX, bgXOffset, wideExtra, lineHeight * i + bgMinY,
+                                       bgMaxY - 1 + bgMinY);
+            }
+#endif
         }
     } else {
         lineHeight = 6;

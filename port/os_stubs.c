@@ -71,7 +71,13 @@ void* osVirtualToPhysical(void* addr) {
 static u8 flash_data[FLASH_SIZE];
 static u8 flash_write_buf[FLASH_PAGE_SIZE];
 static int flash_initialized = 0;
+static int flash_dirty = 0;
+#ifdef __vita__
+// The working directory is read-only on Vita, so the save has to live on the memory card.
+static const char* SAVE_FILENAME = "ux0:data/papership/papership_save.bin";
+#else
 static const char* SAVE_FILENAME = "papership_save.bin";
+#endif
 
 static void flash_load_from_disk(void) {
     FILE* f = fopen(SAVE_FILENAME, "rb");
@@ -92,6 +98,16 @@ static void flash_flush_to_disk(void) {
         fclose(f);
     } else {
         fprintf(stderr, "[Flash] ERROR: Could not write save file %s\n", SAVE_FILENAME);
+    }
+}
+
+// A save writes dozens of pages back to back, and each one used to rewrite the whole 128KB
+// file. That stalls the Vita for seconds, so the writes only mark the data dirty and the
+// main loop calls this once per frame.
+void port_flash_flush_if_dirty(void) {
+    if (flash_dirty) {
+        flash_dirty = 0;
+        flash_flush_to_disk();
     }
 }
 
@@ -138,7 +154,7 @@ s32 osFlashWriteArray(u32 pageNum) {
     }
 
     memcpy(flash_data + offset, flash_write_buf, FLASH_PAGE_SIZE);
-    flash_flush_to_disk();
+    flash_dirty = 1;
     return 0;
 }
 
@@ -154,7 +170,7 @@ s32 osFlashSectorErase(u32 pageNum) {
     }
 
     memset(flash_data + offset, 0, size);
-    flash_flush_to_disk();
+    flash_dirty = 1;
     return 0;
 }
 

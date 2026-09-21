@@ -11,6 +11,18 @@ void nuPiReadRom(u32 rom_addr, void* buf_ptr, u32 size);
 // On 64-bit PC, heap pointers are positive, so msgID >= 0 can't distinguish
 // message IDs from buffer pointers. Valid message IDs are at most ~0x2EFFFF.
 #define MSG_ID_IS_BUFFER_PTR(id) ((uintptr_t)(id) > 0xFFFFFF)
+
+// Tripwire for a memory corruption hunt: the narrator points this at a variable, and each step
+// below checks whether it changed. The first step that sees a change is where it was written.
+void* volatile* gPortWatchAddr = NULL;
+void* gPortWatchVal = NULL;
+void port_watch_check(const char* step) {
+    if (gPortWatchAddr != NULL && *gPortWatchAddr != gPortWatchVal) {
+        fprintf(stderr, "[watch] value at %p changed %p -> %p, seen after: %s\n", (void*)gPortWatchAddr,
+                gPortWatchVal, (void*)*gPortWatchAddr, step);
+        gPortWatchVal = *gPortWatchAddr;
+    }
+}
 #endif
 
 #include "charset/charset.h"
@@ -1497,6 +1509,7 @@ void dma_load_msg(u32 msgID, void* dest) {
 
     // 1. Read the section table offset (4 bytes at MSG_ROM_START + sectionIdx)
     nuPiReadRom(MSG_ROM_START + sectionIdx, &sectionOffset, 4);
+    port_watch_check("dma_load_msg: section read");
     sectionOffset = ROM_BSWAP32(sectionOffset);
 
     // Safety: if sectionOffset is 0, the section doesn't exist in this ROM version
@@ -1510,6 +1523,7 @@ void dma_load_msg(u32 msgID, void* dest) {
     // 2. Read the message start/end offsets from the section's message table
     u32 msgTableAddr = MSG_ROM_START + sectionOffset + (msgID & 0xFFFF) * 4;
     nuPiReadRom(msgTableAddr, msgOffsets, 8);
+    port_watch_check("dma_load_msg: offsets read");
     msgOffsets[0] = ROM_BSWAP32(msgOffsets[0]);
     msgOffsets[1] = ROM_BSWAP32(msgOffsets[1]);
 
@@ -1520,6 +1534,7 @@ void dma_load_msg(u32 msgID, void* dest) {
 
     if (msgEnd > msgStart && msgSize < 0x400) {
         nuPiReadRom(msgStart, dest, msgSize);
+        port_watch_check("dma_load_msg: message read");
         // Ensure terminator exists within loaded data
         if (((u8*)dest)[msgSize - 1] != 0xFD) {
             ((u8*)dest)[msgSize] = 0xFD; // add terminator after data
@@ -1884,11 +1899,15 @@ void get_msg_properties(s32 msgID, s32* height, s32* width, s32* maxLineChars, s
 #endif
         buffer = general_heap_malloc(0x400);
 #ifdef PORT
+        port_watch_check("get_msg_properties: general_heap_malloc");
         if (buffer == NULL) {
             return;
         }
 #endif
         dma_load_msg(msgID, buffer);
+#ifdef PORT
+        port_watch_check("get_msg_properties: dma_load_msg");
+#endif
         message = buffer;
     } else {
         message = (u8*)msgID;
@@ -2106,9 +2125,15 @@ void get_msg_properties(s32 msgID, s32* height, s32* width, s32* maxLineChars, s
         }
     } while (!stop);
 
+#ifdef PORT
+    port_watch_check("get_msg_properties: parse loop");
+#endif
     if (buffer != nullptr) {
         general_heap_free(buffer);
     }
+#ifdef PORT
+    port_watch_check("get_msg_properties: general_heap_free");
+#endif
 
     for (i = 0; i < lineIndex; i++) {
         if (maxLineWidth < lineWidths[i]) {
@@ -2206,6 +2231,18 @@ void draw_msg(s32 msgID, s32 posX, s32 posY, s32 opacity, s32 palette, u8 style)
 
 #ifdef PORT
         if (MSG_ID_IS_BUFFER_PTR(msgID)) {
+#ifdef __vita__
+            // Vita pointers all start at 0x81000000. Anything below 0x80000000 that is not a
+            // message ID is garbage, so log it and skip instead of faulting on it.
+            if ((uintptr_t)msgID < 0x80000000u) {
+                static s32 sBadPtrLogCount = 0;
+                if (sBadPtrLogCount++ < 5) {
+                    fprintf(stderr, "[draw_msg] msgID 0x%X is not a message ID or a pointer, skipping\n",
+                            (u32)msgID);
+                }
+                return;
+            }
+#endif
 #else
         if (msgID < 0) {
 #endif

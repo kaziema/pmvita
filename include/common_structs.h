@@ -2298,12 +2298,20 @@ typedef struct {
 #define DISPLAYCONTEXT_GFX_COUNT 0x2080
 #endif
 
+#ifdef PORT
+// The widescreen background draws extra rects past both edges of the 296px strip, on top of
+// the original commands, which already fill most of the N64 size of 0x200.
+#define DISPLAYCONTEXT_BG_GFX_COUNT 0x800
+#else
+#define DISPLAYCONTEXT_BG_GFX_COUNT 0x200
+#endif
+
 typedef struct {
     /* 0x00000 */ LookAt lookAt;
     /* 0x00020 */ Hilite hilite;
     /* 0x00030 */ Mtx camPerspMatrix[8]; // could only be length 4, unsure
     /* 0x00230 */ Gfx mainGfx[DISPLAYCONTEXT_GFX_COUNT];
-    /* 0x10630 */ Gfx backgroundGfx[0x200]; // used by gfx_task_background
+    /* 0x10630 */ Gfx backgroundGfx[DISPLAYCONTEXT_BG_GFX_COUNT]; // used by gfx_task_background
     /* 0x11630 */ Mtx matrixStack[0x200];
 } DisplayContext; // size = 0x19630
 

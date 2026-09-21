@@ -38,7 +38,7 @@ You'll need a Vita that's already homebrew-enabled (h-encore/HENkaku) with VitaS
 
 Drop the new `PaperMarioVita.vpk` into `ux0:data/papership`, highlight it in VitaShell, and press **X** twice like the first install. Every build uses the same Title ID, so this installs over the old version in place.
 
-Your save is safe either way. It lives at `ux0:data/papership/default.sav`, and isn't part of the app package, so installing an update or even deleting the app doesn't touch it.
+Your save is safe either way. It lives at `ux0:data/papership/papership_save.bin`, and isn't part of the app package, so installing an update or even deleting the app doesn't touch it.
 
 ## Current Status
 
