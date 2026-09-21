@@ -34,6 +34,12 @@ You'll need a Vita that's already homebrew-enabled (h-encore/HENkaku) with VitaS
 4. Back in VitaShell, go into `ux0:data/papership`, highlight `PaperMarioVita.vpk`, and press **X**. Press **X** again to accept the extended-permissions prompt. That installs the app. The `.vpk` file itself can stay in the folder or be deleted afterward, doesn't matter.
 5. Launch Paper Mario from the LiveArea like any other app. First boot creates `log.txt`, `crash.log`, and a `shader_cache` folder in `ux0:data/papership` on its own. You don't need to make those.
 
+## Updating
+
+Drop the new `PaperMarioVita.vpk` into `ux0:data/papership`, highlight it in VitaShell, and press **X** twice like the first install. Every build uses the same Title ID, so this installs over the old version in place.
+
+Your save is safe either way. It lives at `ux0:data/papership/default.sav`, and isn't part of the app package, so installing an update or even deleting the app doesn't touch it.
+
 ## Current Status
 
 Done so far:
