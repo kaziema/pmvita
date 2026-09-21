@@ -25,6 +25,9 @@ typedef struct IntroMessage {
 u32 N(IntroMessageState) = 0; // mode
 s32 N(IntroMessageAlpha) = 0; // alpha related
 IntroMessage* N(CurMessageList) = nullptr;
+#ifdef PORT
+static IntroMessage* sPortListBackup = nullptr;
+#endif
 
 void N(UpdateIntroMessages)(IntroMessage** introMessageLists) {
     u8 type;
@@ -37,6 +40,17 @@ void N(UpdateIntroMessages)(IntroMessage** introMessageLists) {
 
 #ifdef PORT
     port_heap_check_all();
+
+    // Something on Vita overwrites CurMessageList with a heap pointer. The narrator is the only
+    // code that should move it, so put it back to where the narrator left it last frame.
+    if (N(CurMessageList) != nullptr && sPortListBackup != nullptr && N(CurMessageList) != sPortListBackup) {
+        static s32 sRestoreLogCount = 0;
+        if (sRestoreLogCount++ < 5) {
+            fprintf(stderr, "[narrator] CurMessageList changed outside the narrator: %p, restoring %p\n",
+                    (void*)N(CurMessageList), (void*)sPortListBackup);
+        }
+        N(CurMessageList) = sPortListBackup;
+    }
 #endif
 
     if (N(CurMessageList) == nullptr) {
@@ -142,6 +156,9 @@ void N(UpdateIntroMessages)(IntroMessage** introMessageLists) {
 #endif
         }
     }
+#ifdef PORT
+    sPortListBackup = N(CurMessageList);
+#endif
 }
 
 API_CALLABLE(N(SetCurtainCallback)) {

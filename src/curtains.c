@@ -146,6 +146,49 @@ Gfx TheaterGfx[] ={
     gsSPEndDisplayList(),
 };
 
+#ifdef PORT
+extern float GameEngine_GetAspectRatio(void);
+
+// PORT: On a wide screen the two walls slide out to the screen edges, and the floor and valance
+// widen. The walls have to be drawn separately from the rest for that. Each side holds the wall
+// and the shadows next to it.
+Gfx PortTheaterLeftSideGfx[] = {
+    gsSPDisplayList(TheaterLeftWallGfx),
+    gsDPPipeSync(),
+    gsDPSetRenderMode(G_RM_PASS, G_RM_XLU_SURF2),
+    gsDPSetCombineMode(G_CC_SHADE, PM_CC2_MULTIPLY_PRIM),
+    gsSPTexture(0x0080, 0x0080, 0, G_TX_RENDERTILE, G_OFF),
+    gsSPVertex(theater_right_inset_shadow_vtx, 4, 0),
+    gsSP2Triangles(0, 1, 2, 0, 0, 2, 3, 0),
+    gsDPPipeSync(),
+    gsDPSetRenderMode(G_RM_PASS, G_RM_CLD_SURF2),
+    gsDPSetCombineMode(G_CC_MODULATEIA, PM_CC2_MULTIPLY_PRIM),
+    gsSPDisplayList(D_80075730),
+    gsSPVertex(&theater_wall_shadows_vtx[0], 4, 0),
+    gsSP2Triangles(0, 1, 2, 0, 0, 2, 3, 0),
+    gsSPEndDisplayList(),
+};
+
+Gfx PortTheaterRightSideGfx[] = {
+    gsSPDisplayList(TheaterRightWallGfx),
+    gsDPPipeSync(),
+    gsDPSetRenderMode(G_RM_PASS, G_RM_XLU_SURF2),
+    gsDPSetCombineMode(G_CC_SHADE, PM_CC2_MULTIPLY_PRIM),
+    gsSPTexture(0x0080, 0x0080, 0, G_TX_RENDERTILE, G_OFF),
+    gsSPVertex(theater_left_inset_shadow_vtx, 4, 0),
+    gsSP2Triangles(0, 1, 2, 0, 0, 2, 3, 0),
+    gsDPPipeSync(),
+    gsDPSetRenderMode(G_RM_PASS, G_RM_CLD_SURF2),
+    gsDPSetCombineMode(G_CC_MODULATEIA, PM_CC2_MULTIPLY_PRIM),
+    gsSPDisplayList(D_80075730),
+    gsSPVertex(&theater_wall_shadows_vtx[4], 4, 0),
+    gsSP2Triangles(0, 1, 2, 0, 0, 2, 3, 0),
+    gsSPEndDisplayList(),
+};
+
+BSS Mtx sPortTheaterMtx[3];
+#endif
+
 Vp TheaterViewport = {
     {
         {(SCREEN_WIDTH/2)*4, (SCREEN_HEIGHT/2)*4, 0x200 - 1, 0},
@@ -270,7 +313,42 @@ void render_curtains(void) {
         gSPMatrix(gMainGfxPos++, &D_8009BAA8[1], G_MTX_PUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
         rgb = 255.0f - (gCurtainFade * 255.0f);
         gDPSetPrimColor(gMainGfxPos++, 0, 0, rgb, rgb, rgb, 255);
+#ifdef PORT
+        {
+            f32 wide = GameEngine_GetAspectRatio() / (4.0f / 3.0f);
+
+            if (wide > 1.01f) {
+                Matrix4f mPart;
+                Matrix4f mTemp;
+                f32 dx = 1600.0f * (wide - 1.0f);
+
+                // floor and valance: widened
+                guScaleF(mTemp, wide, 1.0f, 1.0f);
+                guMtxCatF(mTemp, m, mPart);
+                guMtxF2L(mPart, &sPortTheaterMtx[0]);
+                // walls: slid out to the screen edges, not stretched
+                guTranslateF(mTemp, -dx, 0.0f, 0.0f);
+                guMtxCatF(mTemp, m, mPart);
+                guMtxF2L(mPart, &sPortTheaterMtx[1]);
+                guTranslateF(mTemp, dx, 0.0f, 0.0f);
+                guMtxCatF(mTemp, m, mPart);
+                guMtxF2L(mPart, &sPortTheaterMtx[2]);
+
+                gSPMatrix(gMainGfxPos++, &sPortTheaterMtx[0], G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
+                gSPDisplayList(gMainGfxPos++, TheaterFloorGfx);
+                gSPMatrix(gMainGfxPos++, &sPortTheaterMtx[1], G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
+                gSPDisplayList(gMainGfxPos++, PortTheaterLeftSideGfx);
+                gSPMatrix(gMainGfxPos++, &sPortTheaterMtx[2], G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
+                gSPDisplayList(gMainGfxPos++, PortTheaterRightSideGfx);
+                gSPMatrix(gMainGfxPos++, &sPortTheaterMtx[0], G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
+                gSPDisplayList(gMainGfxPos++, TheaterCurtainGfx);
+            } else {
+                gSPDisplayList(gMainGfxPos++, &TheaterGfx);
+            }
+        }
+#else
         gSPDisplayList(gMainGfxPos++, &TheaterGfx);
+#endif
         gSPPopMatrix(gMainGfxPos++, G_MTX_MODELVIEW);
         gDPPipeSync(gMainGfxPos++);
     }

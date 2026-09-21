@@ -17,8 +17,9 @@ If you're one of these people reading this, thank you!
 
 This is a clean-room port built entirely from the publicly available [Paper Mario decompilation](https://github.com/pmret/papermario), same legal approach as [Ship of Harkinian](https://github.com/HarbourMasters/Shipwright) and [Ghostship](https://github.com/HarbourMasters/Ghostship).
 
-- **This repository contains NO copyrighted Nintendo assets.** No ROM data, no textures, no audio, no models.
+- **This repository contains no ROM data.** No game textures, no audio, no models.
 - All game assets are read at runtime from a ROM you provide yourself.
+- The one exception is the LiveArea artwork in `livearea/` (the bubble icon, background, and startup image). That is official Paper Mario artwork owned by Nintendo, used only to dress up the app's LiveArea page.
 - I don't condone piracy. Bring your own legally obtained copy.
 
 ## Installation
