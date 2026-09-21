@@ -823,6 +823,9 @@ void spr_init_sprites(s32 playerSpriteSet) {
     }
 
     spr_init_quad_cache();
+#ifdef PORT
+    fprintf(stderr, "[spr_init_sprites] returning\n");
+#endif
 }
 
 void spr_render_init(void) {

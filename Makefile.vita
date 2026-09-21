@@ -122,7 +122,7 @@ CFLAGS := -g -Wl,-q,--allow-multiple-definition -O2 -ffast-math -fno-short-enums
 	-Wno-error=int-conversion -Wno-error=implicit-int -Wno-error=return-mismatch \
 	$(foreach dir,$(INCLUDES),-I$(dir)) \
 	-D_LANGUAGE_C -DVERSION_US=1 -DENABLE_RUMBLE=1 -DF3DEX_GBI_2=1 -DGBI_FLOATS=1 \
-	-DAVOID_UB=1 -DPORT=1 \
+	-DAVOID_UB=1 -DPORT=1 -DNDEBUG \
 	-D_USE_MATH_DEFINES -DCIMGUI_DEFINE_ENUMS_AND_STRUCTS -DIMGUI_DEFINE_MATH_OPERATORS \
 	-DENABLE_OPENGL=1 -DNO_OTR_TEXTURES=1 -DYAML_CPP_STATIC_DEFINE -DEXCLUDE_MPQ_SUPPORT \
 	-DSKIP_OTR_HANDLERS=1 \
@@ -212,6 +212,8 @@ $(TARGET).vpk: $(TARGET).velf check-livearea
 		-a livearea/icon0.png=sce_sys/icon0.png \
 		-a livearea/bg.png=sce_sys/livearea/contents/bg.png \
 		-a livearea/startup.png=sce_sys/livearea/contents/startup.png \
+		-a livearea/github.png=sce_sys/livearea/contents/github.png \
+		-a livearea/discord.png=sce_sys/livearea/contents/discord.png \
 		-a livearea/template.xml=sce_sys/livearea/contents/template.xml
 
 %.velf: %.elf

@@ -469,6 +469,13 @@ void GameEngine::RunCommands(Gfx* Commands, const std::vector<std::unordered_map
     wnd->HandleEvents();
 
     interpreter->mInterpolationIndex = 0;
+#ifdef __vita__
+    static bool sLoggedFirstRun = false;
+    if (!sLoggedFirstRun) {
+        sLoggedFirstRun = true;
+        fprintf(stderr, "[RunCommands] first call, %zu mtx_replacements\n", mtx_replacements.size());
+    }
+#endif
     for (const auto& mtxStack : mtx_replacements) {
         wnd->DrawAndRunGraphicsCommands(Commands, mtxStack);
         interpreter->mInterpolationIndex++;

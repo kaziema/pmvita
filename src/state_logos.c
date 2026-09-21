@@ -1,4 +1,8 @@
 #include "common.h"
+#ifdef PORT
+#include <stdio.h>
+#include "rom_offsets.h"
+#endif
 #include "ld_addrs.h"
 #include "camera.h"
 #include "hud_element.h"
@@ -77,7 +81,17 @@ void state_init_logos(void) {
 
     romEnd = logos_ROM_END;
     romStart = logos_ROM_START;
+#ifdef PORT
+    {
+        u32 size = resolve_rom_offset(romEnd) - resolve_rom_offset(romStart);
+        fprintf(stderr, "[state_logos] context=%d requesting %d bytes from heap_malloc\n",
+            gGameStatusPtr->context, (int)size);
+        gLogosImages = heap_malloc(size);
+        fprintf(stderr, "[state_logos] heap_malloc -> %p\n", gLogosImages);
+    }
+#else
     gLogosImages = heap_malloc(romEnd - romStart);
+#endif
     dma_copy(romStart, romEnd, gLogosImages);
 
     gLogosImage1 = gLogosImages + 0x0;
@@ -114,16 +128,46 @@ void state_init_logos(void) {
     clear_worker_list();
     clear_render_tasks();
     spr_init_sprites(PLAYER_SPRITES_MARIO_WORLD);
+#ifdef PORT
+    fprintf(stderr, "[state_logos] after spr_init_sprites\n");
+#endif
     clear_animator_list();
+#ifdef PORT
+    fprintf(stderr, "[state_logos] after clear_animator_list\n");
+#endif
     clear_entity_models();
+#ifdef PORT
+    fprintf(stderr, "[state_logos] after clear_entity_models\n");
+#endif
     clear_npcs();
+#ifdef PORT
+    fprintf(stderr, "[state_logos] after clear_npcs\n");
+#endif
     hud_element_clear_cache();
+#ifdef PORT
+    fprintf(stderr, "[state_logos] after hud_element_clear_cache\n");
+#endif
     reset_background_settings();
+#ifdef PORT
+    fprintf(stderr, "[state_logos] after reset_background_settings\n");
+#endif
     clear_entity_data(true);
+#ifdef PORT
+    fprintf(stderr, "[state_logos] after clear_entity_data\n");
+#endif
     clear_effect_data();
+#ifdef PORT
+    fprintf(stderr, "[state_logos] after clear_effect_data\n");
+#endif
     gOverrideFlags |= GLOBAL_OVERRIDES_DISABLE_RENDER_WORLD;
     startup_fade_screen_update();
+#ifdef PORT
+    fprintf(stderr, "[state_logos] after startup_fade_screen_update\n");
+#endif
     gGameStatusPtr->backgroundFlags = 0;
+#ifdef PORT
+    fprintf(stderr, "[state_logos] init_logos done\n");
+#endif
 }
 
 void state_step_logos(void) {

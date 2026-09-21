@@ -21,29 +21,54 @@ This is a clean-room port built entirely from the publicly available [Paper Mari
 - All game assets are read at runtime from a ROM you provide yourself.
 - I don't condone piracy. Bring your own legally obtained copy.
 
+## Installation
+
+You'll need a Vita that's already homebrew-enabled (h-encore/HENkaku) with VitaShell installed. That part isn't covered here.
+
+1. On your Vita, open VitaShell and go to `ux0:/data/`.
+2. Press **Triangle**, choose **New**, and name the new folder `papership`. You should now have `ux0:data/papership`.
+3. Get four files into that `papership` folder (FTP or USB transfer with VitaShell, whichever you normally use to move files onto the memory card):
+   - `PaperMarioVita.vpk`
+   - Your own ROM, named exactly one of: `Paper Mario (USA).z64`, `baserom.us.z64`, `pm64.z64`, or `papermario.z64`. Same rule as the Legal Notice above, your own dump, not a downloaded one.
+   - `papership.o2r`, which holds the shader templates. The game won't render without it.
+4. Back in VitaShell, go into `ux0:data/papership`, highlight `PaperMarioVita.vpk`, and press **X**. Press **X** again to accept the extended-permissions prompt. That installs the app. The `.vpk` file itself can stay in the folder or be deleted afterward, doesn't matter.
+5. Launch Paper Mario from the LiveArea like any other app. First boot creates `log.txt`, `crash.log`, and a `shader_cache` folder in `ux0:data/papership` on its own. You don't need to make those.
+
 ## Current Status
 
 Done so far:
+- `Makefile.vita` wired end to end, producing a working VPK
 - Fixed a heap-sizing bug where Vita would have silently inherited 64-bit desktop heap sizes instead of the correct 32-bit N64-original ones
 - Vita boot path wired into the entry point: heap allocation, max CPU/GPU clocks, game loop moved onto a properly-stacked worker thread
 - libultraship `__vita__` patches ported in from Ghostship/2ship2harkinian: vitaGL scratch-buffer lifecycle, ARM NEON math, SDL2 input/window/framerate backend, OpenGL backend adjustments
+- Boots to gameplay and renders on hardware at roughly 30fps, with occasional frame hiccups still to chase down
+- LiveArea art and GitHub/Discord link buttons
 
 Still to do:
-- `Makefile.vita` / toolchain wiring, so there's actually something to build
-- Two shader-cache-related `gfx_opengl.cpp` patches from the reference ports (that part of the file has drifted too far for a safe direct port)
-- Everything after that: first boot, asset pipeline on-device, controls, performance work
+- Broader testing across areas, battles, and save/load
+- Remaining performance hiccups
+- General playthrough coverage and controls polish
 
 ## Building
 
-Nothing to build yet. Once the Vita build target lands, instructions go here.
+```
+make -f Makefile.vita
+```
 
-You'll need a **US** Paper Mario ROM in `.z64` format when that time comes.
+Produces `PaperMarioVita.vpk`. `papership.o2r` isn't part of that build. It's packed separately, from `assets/port`, using the vendored `Torch` tool (built and run natively on your desktop, not for Vita):
+
+```
+cd Torch && cmake -B build && cmake --build build
+./build/torch pack ../assets/port ../papership.o2r o2r -u 0.1.0
+```
+
+You'll need a **US** Paper Mario ROM in `.z64` format to actually run the game.
 
 | Version | SHA-1 |
 |---------|-------|
 | US | `3837f44cda784b466c9a2d99df70d77c322b97a0` |
 
-## Requirements (eventual)
+## Requirements
 
 - A homebrew-enabled PS Vita or PS TV
 - [VitaSDK](https://vitasdk.org/)
@@ -62,8 +87,8 @@ You'll need a **US** Paper Mario ROM in `.z64` format when that time comes.
 
 ## Credits
 
-- **[kaziema](https://github.com/kaziema)** — PS Vita port
-- **[versacepapermario](https://github.com/versacepapermario)** — PaperShip, the port this is built from
-- [Paper Mario Decompilation Team](https://github.com/pmret/papermario) — the decomp
-- [Rinnegatamante](https://github.com/Rinnegatamante) — vitaGL, and the Vita ports this platform layer is built from
-- [libultraship / Ship of Harkinian Team](https://github.com/HarbourMasters) — rendering engine
+- **[kaziema](https://github.com/kaziema)**: PS Vita port
+- **[versacepapermario](https://github.com/versacepapermario)**: PaperShip, the port this is built from
+- [Paper Mario Decompilation Team](https://github.com/pmret/papermario): the decomp
+- [Rinnegatamante](https://github.com/Rinnegatamante): vitaGL, and the Vita ports this platform layer is built from
+- [libultraship / Ship of Harkinian Team](https://github.com/HarbourMasters): rendering engine

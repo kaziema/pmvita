@@ -415,6 +415,13 @@ void spr_init_player_raster_cache(s32 cacheSize, s32 maxRasterSize) {
         (unsigned)SpriteDataHeader[0], (unsigned)SpriteDataHeader[1], (unsigned)SpriteDataHeader[2]);
 #endif
     raster = _heap_malloc(&heap_spriteHead, maxRasterSize * cacheSize);
+#ifdef PORT
+    fprintf(stderr, "[spr_init_player_raster_cache] _heap_malloc(%u * %u = %u) -> %p\n",
+        (unsigned)maxRasterSize, (unsigned)cacheSize, (unsigned)(maxRasterSize * cacheSize), raster);
+    if (!raster) {
+        fprintf(stderr, "[spr_init_player_raster_cache] WARNING: allocation failed, heap_spriteHead exhausted\n");
+    }
+#endif
 
     for (i = 0; i < ARRAY_COUNT(PlayerRasterCache); i++) {
         PlayerRasterCache[i].raster = raster;

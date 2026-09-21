@@ -93,6 +93,15 @@ static bool sFrameSubmitted = false;
 static Gfx sEmptyDl[2];
 
 extern "C" void nuGfxTaskStart(Gfx* gfxList_ptr, u32 gfxListSize, u32 ucode, u32 flag) {
+#ifdef __vita__
+    {
+        static bool sLoggedFirstTask = false;
+        if (!sLoggedFirstTask) {
+            sLoggedFirstTask = true;
+            fprintf(stderr, "[nuGfxTaskStart] first call, flag=0x%x swap=%d\n", flag, (flag & NU_SC_SWAPBUFFER) != 0);
+        }
+    }
+#endif
     if (!(flag & NU_SC_SWAPBUFFER)) {
         // Background DL — save for combining with the next main DL
         sPendingBackgroundDl = gfxList_ptr;
@@ -130,6 +139,15 @@ static int sPushFrameCount = 0;
 float gPortWindowAspectRatio = 4.0f / 3.0f;
 
 void push_frame() {
+#ifdef __vita__
+    {
+        static bool sLoggedFirstFrame = false;
+        if (!sLoggedFirstFrame) {
+            sLoggedFirstFrame = true;
+            fprintf(stderr, "[push_frame] first call\n");
+        }
+    }
+#endif
     // Frame rate limiter: target 30fps using accumulative timing.
     // Sleep for the bulk of the wait, then spin-wait for the last ~2ms for accuracy.
     // This avoids the OS scheduler overshooting sleep_for() which was causing ~25fps.
@@ -283,6 +301,11 @@ int main(int argc, char* argv[]) {
     scePowerSetGpuClockFrequency(222);
     scePowerSetGpuXbarClockFrequency(166);
     sceIoMkdir("ux0:data/papership", 0777);
+    // Has to exist before vitaGL initializes (Interpreter's constructor,
+    // called during window setup below) -- it was only being created later
+    // in gfx_sdl2.cpp's Init(), after vitaGL's first shader compile already
+    // needed it. Matches Ghostship-vita's actual working order.
+    sceIoMkdir("ux0:data/papership/shader_cache", 0777);
 
     pthread_t t;
     pthread_attr_t attr;

@@ -8,4 +8,18 @@
 	<gate>
 		<startup-image>startup.png</startup-image>
 	</gate>
+
+	<frame id="frame1">
+		<liveitem>
+			<image valign="bottom" origin="frame" align="left" image-align="left" image-valign="bottom" width="200" height="56" x="20" y="-20">github.png</image>
+			<target>https://github.com/kaziema/pmvita</target>
+		</liveitem>
+	</frame>
+
+	<frame id="frame2">
+		<liveitem>
+			<image valign="bottom" origin="frame" align="right" image-align="right" image-valign="bottom" width="200" height="56" x="-20" y="-20">discord.png</image>
+			<target>https://discord.gg/gxtYHhND6</target>
+		</liveitem>
+	</frame>
 </livearea>

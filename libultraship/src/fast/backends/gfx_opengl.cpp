@@ -401,9 +401,10 @@ ShaderProgram* GfxRenderingAPIOGL::CreateAndLoadNewShader(uint64_t shader_id0, u
         GLint max_length = 0;
         glGetShaderiv(vertex_shader, GL_INFO_LOG_LENGTH, &max_length);
         char error_log[1024];
-        // fprintf(stderr, "Vertex shader compilation failed\n");
+        fprintf(stderr, "Vertex shader compilation failed\n");
         glGetShaderInfoLog(vertex_shader, max_length, &max_length, &error_log[0]);
-        // fprintf(stderr, "%s\n", &error_log[0]);
+        fprintf(stderr, "%s\n", &error_log[0]);
+        fprintf(stderr, "--- vertex shader source ---\n%s\n", vs_buf.c_str());
         abort();
     }
 
@@ -418,6 +419,7 @@ ShaderProgram* GfxRenderingAPIOGL::CreateAndLoadNewShader(uint64_t shader_id0, u
         fprintf(stderr, "Fragment shader compilation failed\n");
         glGetShaderInfoLog(fragment_shader, max_length, &max_length, &error_log[0]);
         fprintf(stderr, "%s\n", &error_log[0]);
+        fprintf(stderr, "--- fragment shader source ---\n%s\n", fs_buf.c_str());
         abort();
     }
 
@@ -425,6 +427,16 @@ ShaderProgram* GfxRenderingAPIOGL::CreateAndLoadNewShader(uint64_t shader_id0, u
     glAttachShader(shader_program, vertex_shader);
     glAttachShader(shader_program, fragment_shader);
     glLinkProgram(shader_program);
+    glGetProgramiv(shader_program, GL_LINK_STATUS, &success);
+    if (!success) {
+        GLint max_length = 0;
+        glGetProgramiv(shader_program, GL_INFO_LOG_LENGTH, &max_length);
+        char error_log[1024];
+        fprintf(stderr, "Shader program link failed\n");
+        glGetProgramInfoLog(shader_program, max_length, &max_length, &error_log[0]);
+        fprintf(stderr, "%s\n", &error_log[0]);
+        abort();
+    }
 
     size_t cnt = 0;
 

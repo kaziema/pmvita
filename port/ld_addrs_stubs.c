@@ -5,38 +5,45 @@
 
 #include "ultra64.h"
 
+/*
+ * Every field below used to be a `[0]` array. Zero-byte weak objects need no
+ * storage, so the linker is free to coalesce any two of them onto the same
+ * address -- confirmed this actually happening (logos_ROM_START and
+ * logos_ROM_END both linked to the identical address, so
+ * romEnd - romStart == 0 and the game read out of a null buffer). Giving
+ * every marker a real 1-byte footprint forces the linker to give it its own
+ * address. Costs a handful of extra bytes total, not a real memory concern.
+ */
 #define DEFINE_SEGMENT(n) \
-    u8 n##_ROM_START[0] __attribute__((weak)); \
-    u8 n##_ROM_END[0] __attribute__((weak)); \
-    u8 n##_VRAM[0] __attribute__((weak));
+    u8 n##_ROM_START[1] __attribute__((weak)); \
+    u8 n##_ROM_END[1] __attribute__((weak)); \
+    u8 n##_VRAM[1] __attribute__((weak));
 
 /**
  * DEFINE_SEGMENT_RANGED: For segments where game code does pointer arithmetic
  * (e.g., imgfx_data_ROM_START + offset), the _ROM_START stub must be large
  * enough that the computed address lands within this array and NOT inside
- * another stub. Zero-length stubs get packed together by the linker, making
- * range-based lookup impossible. BSS arrays only consume virtual address
- * space (not physical memory) on 64-bit, so this is safe.
+ * another stub.
  */
 #define DEFINE_SEGMENT_RANGED(n, rom_size) \
     u8 n##_ROM_START[rom_size] __attribute__((weak)); \
-    u8 n##_ROM_END[0] __attribute__((weak)); \
-    u8 n##_VRAM[0] __attribute__((weak));
+    u8 n##_ROM_END[1] __attribute__((weak)); \
+    u8 n##_VRAM[1] __attribute__((weak));
 
 #define DEFINE_OVERLAY(n) \
-    u8 n##_ROM_START[0] __attribute__((weak)); \
-    u8 n##_ROM_END[0] __attribute__((weak)); \
-    u8 n##_VRAM[0] __attribute__((weak)); \
-    u8 n##_TEXT_START[0] __attribute__((weak)); \
-    u8 n##_TEXT_END[0] __attribute__((weak)); \
-    u8 n##_DATA_START[0] __attribute__((weak)); \
-    u8 n##_RODATA_END[0] __attribute__((weak)); \
-    u8 n##_BSS_START[0] __attribute__((weak)); \
-    u8 n##_BSS_END[0] __attribute__((weak));
+    u8 n##_ROM_START[1] __attribute__((weak)); \
+    u8 n##_ROM_END[1] __attribute__((weak)); \
+    u8 n##_VRAM[1] __attribute__((weak)); \
+    u8 n##_TEXT_START[1] __attribute__((weak)); \
+    u8 n##_TEXT_END[1] __attribute__((weak)); \
+    u8 n##_DATA_START[1] __attribute__((weak)); \
+    u8 n##_RODATA_END[1] __attribute__((weak)); \
+    u8 n##_BSS_START[1] __attribute__((weak)); \
+    u8 n##_BSS_END[1] __attribute__((weak));
 
 /* Bare data symbols (not ROM segments - used as offset markers within imgfx_data) */
 #define DEFINE_DATA_SYMBOL(n) \
-    u8 n[0] __attribute__((weak));
+    u8 n[1] __attribute__((weak));
 
 DEFINE_DATA_SYMBOL(shock_header)
 DEFINE_DATA_SYMBOL(shiver_header)
