@@ -27,7 +27,7 @@ You'll need a Vita that's already homebrew-enabled (h-encore/HENkaku) with VitaS
 
 1. On your Vita, open VitaShell and go to `ux0:/data/`.
 2. Press **Triangle**, choose **New**, and name the new folder `papership`. You should now have `ux0:data/papership`.
-3. Get four files into that `papership` folder (FTP or USB transfer with VitaShell, whichever you normally use to move files onto the memory card):
+3. Get three files into that `papership` folder (FTP or USB transfer with VitaShell, whichever you normally use to move files onto the memory card):
    - `PaperMarioVita.vpk`
    - Your own ROM, named exactly one of: `Paper Mario (USA).z64`, `baserom.us.z64`, `pm64.z64`, or `papermario.z64`. Same rule as the Legal Notice above, your own dump, not a downloaded one.
    - `papership.o2r`, which holds the shader templates. The game won't render without it.
