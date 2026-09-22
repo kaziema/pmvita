@@ -19,7 +19,6 @@ This is a clean-room port built entirely from the publicly available [Paper Mari
 
 - **This repository contains no ROM data.** No game textures, no audio, no models.
 - All game assets are read at runtime from a ROM you provide yourself.
-- The one exception is the LiveArea artwork in `livearea/` (the bubble icon, background, and startup image). That is official Paper Mario artwork owned by Nintendo, used only to dress up the app's LiveArea page.
 - I don't condone piracy. Bring your own legally obtained copy.
 
 ## Installation
