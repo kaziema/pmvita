@@ -90,11 +90,19 @@ void reset_player_status(void) {
         gGameStatusPtr->peachBakingIngredient = PEACH_BAKING_NONE;
     }
 
+#ifdef PORT
+    // The N64 code walks these three as one array off &D_800F7B74[-1]; my linker orders them
+    // backwards, which handed Mario a 2.0 jump cap and a 32.0 walk speed.
+    playerStatus->walkSpeed = D_800F7B70 * one;
+    playerStatus->runSpeed = D_800F7B74 * one;
+    playerStatus->maxJumpSpeed = D_800F7B78 * one;
+#else
     // TODO required to match
     floatsTemp = &(&D_800F7B74)[-1]; // index of 0 does not work
     playerStatus->walkSpeed = *floatsTemp++ * one;
     playerStatus->runSpeed = *floatsTemp++ * one;
     playerStatus->maxJumpSpeed = *floatsTemp++ * one;
+#endif
 
     set_action_state(ACTION_STATE_IDLE);
 

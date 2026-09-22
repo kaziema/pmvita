@@ -472,7 +472,7 @@ void GameEngine::RunCommands(Gfx* Commands, const std::vector<std::unordered_map
     static bool sLoggedFirstRun = false;
     if (!sLoggedFirstRun) {
         sLoggedFirstRun = true;
-        fprintf(stderr, "[RunCommands] first call, %zu mtx_replacements\n", mtx_replacements.size());
+        fprintf(stderr, "[RunCommands] first call, %u mtx_replacements\n", (unsigned)mtx_replacements.size());
     }
 #endif
     for (const auto& mtxStack : mtx_replacements) {

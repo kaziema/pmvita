@@ -103,6 +103,12 @@ API_CALLABLE(N(SetupDemoScene)) {
     PlayerStatus* playerStatus = &gPlayerStatus;
     EvtScript* rideScriptSrc;
 
+#ifdef PORT
+    // N64 reloads overlay data every map load; PC doesn't, so reset it here.
+    if (isInitialCall) {
+        N(DemoInitState) = 0;
+    }
+#endif
     switch (N(DemoInitState)) {
         case 0:
             rideScriptSrc = partner_get_enter_map_script();

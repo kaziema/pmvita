@@ -396,8 +396,8 @@ void spr_init_player_raster_cache(s32 cacheSize, s32 maxRasterSize) {
     s32 i;
 
 #ifdef PORT
-    fprintf(stderr, "[spr_init_player_raster_cache] SPRITE_ROM_START=0x%X, reading SpriteDataHeader (%zu bytes)\n",
-        (unsigned)SPRITE_ROM_START, sizeof(SpriteDataHeader));
+    fprintf(stderr, "[spr_init_player_raster_cache] SPRITE_ROM_START=0x%X, reading SpriteDataHeader (%u bytes)\n",
+        (unsigned)SPRITE_ROM_START, (unsigned)sizeof(SpriteDataHeader));
 #endif
     nuPiReadRom(SPRITE_ROM_START, &SpriteDataHeader, sizeof(SpriteDataHeader));
 #ifdef PORT

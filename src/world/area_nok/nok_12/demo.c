@@ -135,6 +135,12 @@ s32 N(DemoInitState1) = 0;
 API_CALLABLE(N(SetupDemoScene1)) {
     PlayerStatus* playerStatus = &gPlayerStatus;
 
+#ifdef PORT
+    // N64 reloads overlay data every map load; PC doesn't, so reset it here.
+    if (isInitialCall) {
+        N(DemoInitState1) = 0;
+    }
+#endif
     switch (N(DemoInitState1)) {
         case 0:
             N(DemoInitState1) = 1;
@@ -174,6 +180,12 @@ s32 N(DemoInitState2) = 0;
 API_CALLABLE(N(SetupDemoScene2)) {
     PlayerStatus* playerStatus = &gPlayerStatus;
 
+#ifdef PORT
+    // N64 reloads overlay data every map load; PC doesn't, so reset it here.
+    if (isInitialCall) {
+        N(DemoInitState2) = 0;
+    }
+#endif
     switch (N(DemoInitState2)) {
         case 0:
             N(DemoInitState2) = 1;

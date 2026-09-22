@@ -85,7 +85,7 @@ static void flash_load_from_disk(void) {
     if (f) {
         size_t bytesRead = fread(flash_data, 1, FLASH_SIZE, f);
         fclose(f);
-        fprintf(stderr, "[Flash] Loaded save data from %s (%zu bytes)\n", SAVE_FILENAME, bytesRead);
+        fprintf(stderr, "[Flash] Loaded save data from %s (%u bytes)\n", SAVE_FILENAME, (unsigned)bytesRead);
     } else {
         memset(flash_data, 0, FLASH_SIZE);
         fprintf(stderr, "[Flash] No save file found, starting fresh\n");
@@ -97,8 +97,8 @@ static void flash_flush_to_disk(void) {
     if (f) {
         size_t written = fwrite(flash_data, 1, FLASH_SIZE, f);
         s32 closeResult = fclose(f);
-        fprintf(stderr, "[Flash] Flushed %zu/%d bytes to %s (fclose=%d)\n", written, FLASH_SIZE, SAVE_FILENAME,
-                closeResult);
+        fprintf(stderr, "[Flash] Flushed %u/%d bytes to %s (fclose=%d)\n", (unsigned)written, FLASH_SIZE,
+                SAVE_FILENAME, closeResult);
     } else {
         fprintf(stderr, "[Flash] ERROR: Could not write save file %s (errno=%d)\n", SAVE_FILENAME, errno);
     }
@@ -349,15 +349,29 @@ s32 osEPiWriteIo(OSPiHandle* pihandle, u32 devAddr, u32 data) {
     return 0;
 }
 
-// N64 fixed-point trig functions
-// Input: angle in range [0, 65535] mapping to [0, 2*PI)
-// Output: result in range [-32767, 32767] mapping to [-1, 1)
-s16 sins(u16 angle) {
-    return (s16)(sinf(angle * (2.0f * 3.14159265f / 65536.0f)) * 32767.0f);
+// Must match libultra's table exactly: all game movement trig goes through these, and demos replay frame-exact.
+#include "../src/os/sintable.inc.c"
+
+s16 sins(u16 x) {
+    s16 val;
+
+    x >>= 4;
+
+    if (x & 0x400) {
+        val = sintable[0x3ff - (x & 0x3ff)];
+    } else {
+        val = sintable[x & 0x3ff];
+    }
+
+    if (x & 0x800) {
+        return -val;
+    } else {
+        return val;
+    }
 }
 
-s16 coss(u16 angle) {
-    return (s16)(cosf(angle * (2.0f * 3.14159265f / 65536.0f)) * 32767.0f);
+s16 coss(u16 x) {
+    return sins(x + 0x4000);
 }
 
 // Flash functions are defined above (lines 53-108), no duplicates needed

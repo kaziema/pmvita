@@ -55,6 +55,12 @@ s32 N(DemoInitState) = {
 API_CALLABLE(N(SetupDemoScene)) {
     PlayerStatus* player = &gPlayerStatus;
 
+#ifdef PORT
+    // N64 reloads overlay data every map load; PC doesn't, so reset it here.
+    if (isInitialCall) {
+        N(DemoInitState) = 0;
+    }
+#endif
     switch (N(DemoInitState)) {
         case 0:
             N(DemoInitState) = 1;

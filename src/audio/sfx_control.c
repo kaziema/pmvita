@@ -344,19 +344,6 @@ void sfx_update_env_sound_params(void) {
     if (sound == NULL) {
         return;
     }
-    // Validate pointer looks reasonable (detect heap corruption)
-    {
-        static int sValidateCount = 0;
-        uintptr_t addr = (uintptr_t)sound;
-        if (addr < 0x100000000 || addr > 0x200000000000) {
-            if (sValidateCount < 3) {
-                fprintf(stderr, "[sfx_update_env_sound_params] PORT: corrupt gCurrentEnvSounds=%p, skipping\n", (void*)sound);
-                fflush(stderr);
-                sValidateCount++;
-            }
-            return;
-        }
-    }
 #endif
     for (i = 0; i < MAX_SOUND_INSTANCES; i++, sound++) {
         if (sound->flags & SOUND_INSTANCE_FLAG_ACTIVE) {
