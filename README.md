@@ -79,7 +79,7 @@ Produces `PaperMarioVita.vpk`. `papership.o2r` isn't part of that build. It's pa
 
 ```
 cd Torch && cmake -B build && cmake --build build
-./build/torch pack ../assets/port ../papership.o2r o2r -u 0.1.0
+./build/torch pack ../assets/port ../papership.o2r o2r -u 0.2.0
 ```
 
 You'll need a **US** Paper Mario ROM in `.z64` format to actually run the game.
