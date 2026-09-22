@@ -30,6 +30,8 @@ static void port_load_indicator_icon_textures(void);
 static void port_load_level_up_textures(void);
 static void port_load_starpoint_textures(void);
 static void port_load_entity_model_data(void);
+static void port_load_shadow_textures(void);
+static void port_load_map_message_images(void);
 
 /* ===== UI box textures (draw_box.c borders/backgrounds) ===== */
 extern u8 ui_box_corners9_png[];
@@ -476,6 +478,12 @@ void port_load_ui_textures(void) {
 
     /* ===== Theater/curtains + no controller ===== */
     port_load_theater_textures();
+
+    /* ===== Entity drop shadows ===== */
+    port_load_shadow_textures();
+
+    /* ===== Map message images ===== */
+    port_load_map_message_images();
 
     /* ===== Indicator icons (speech bubble, inspect, i-spy) ===== */
     port_load_indicator_icon_textures();
@@ -1892,6 +1900,30 @@ static void convert_n64_vtx_to_pc(void* dest, const u8* src, s32 count) {
         o[22] = 0;
         o[23] = 0;
     }
+}
+
+/* ===== Entity drop shadows (src/entity/Shadow.c INCLUDE_IMG symbols) ===== */
+extern u8 D_802E9170[]; /* entity/shadow/square, i4 16x16 */
+extern u8 D_802E91F0[]; /* entity/shadow/circle, i4 16x16 */
+
+/* ===== Map message images (shown inside message boxes) ===== */
+extern u8 kmr_04_hammer_block_message_img[]; /* ci4 48x48 */
+extern u8 kmr_04_hammer_block_message_pal[];
+extern u8 kmr_02_heart_block_img[]; /* ci4 32x32 */
+extern u8 kmr_02_heart_block_pal[];
+
+static void port_load_shadow_textures(void) {
+    nuPiReadRom(0x10A9F0, D_802E9170, 0x80);
+    nuPiReadRom(0x10AA70, D_802E91F0, 0x80);
+    fprintf(stderr, "[PORT] Entity shadow textures loaded: square+circle (128 bytes each)\n");
+}
+
+static void port_load_map_message_images(void) {
+    nuPiReadRom(0x8CC4F0, kmr_04_hammer_block_message_img, 1152);
+    nuPiReadRom(0x8CC970, kmr_04_hammer_block_message_pal, 32);
+    nuPiReadRom(0x8C7B70, kmr_02_heart_block_img, 512);
+    nuPiReadRom(0x8C7D70, kmr_02_heart_block_pal, 32);
+    fprintf(stderr, "[PORT] Map message images loaded: kmr_04 hammer block, kmr_02 heart block\n");
 }
 
 static void port_load_theater_textures(void) {

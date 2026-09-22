@@ -136,6 +136,11 @@ void load_map_by_IDs(s16 areaID, s16 mapID, s16 loadType) {
     sprintf(wMapTexName, "%s_tex", texStr);
 
     gMapConfig = mapConfig;
+#ifdef PORT
+    // Bug reports arrive as photos, so every log needs to name the map it is standing in.
+    fprintf(stderr, "[map] loading '%s' (area=%d map=%d entry=%d)\n", mapConfig->id,
+            gGameStatusPtr->areaID, gGameStatusPtr->mapID, gGameStatusPtr->entryID);
+#endif
     if (mapConfig->bgName != nullptr) {
         strcpy(wMapBgName, mapConfig->bgName);
     }

@@ -1233,6 +1233,36 @@ void Interpreter::ImportTexture(int i, int tile, bool importReplacement) {
         return;
     }
 
+#ifdef __vita__
+    // An all-zero texture is almost always a PORT asset stub no loader ever filled, which is
+    // how blank/white geometry shows up on screen. Report each one once.
+    if (origAddr != nullptr && origSizeBytes >= 64) {
+        static const uint8_t* sBlankSeen[48];
+        static int sBlankCount = 0;
+        bool allZero = true;
+        for (uint32_t j = 0; j < origSizeBytes; j++) {
+            if (origAddr[j] != 0) {
+                allZero = false;
+                break;
+            }
+        }
+        if (allZero && sBlankCount < (int)(sizeof(sBlankSeen) / sizeof(sBlankSeen[0]))) {
+            bool seen = false;
+            for (int k = 0; k < sBlankCount; k++) {
+                if (sBlankSeen[k] == origAddr) {
+                    seen = true;
+                    break;
+                }
+            }
+            if (!seen) {
+                sBlankSeen[sBlankCount++] = origAddr;
+                fprintf(stderr, "[blank-tex] all-zero texture at %p fmt=%d siz=%d bytes=%u\n",
+                        (const void*)origAddr, fmt, siz, origSizeBytes);
+            }
+        }
+    }
+#endif
+
     if ((texFlags & TEX_FLAG_LOAD_AS_IMG) != 0) {
         ImportTextureImg(tile, importReplacement);
         return;

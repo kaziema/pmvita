@@ -263,6 +263,21 @@ void appendGfx_background_texture(void) {
     }
 
     if (gGameStatusPtr->backgroundFlags & BACKGROUND_FLAG_FOG) {
+#ifdef PORT
+        // The fog path is the only thing that rewrites the sky palette, and it is where the
+        // magenta sky shows up. Log its inputs once per distinct set so I can see which is wrong.
+        {
+            static s32 sLastKey = -1;
+            s32 key = (*gBackgroundTintModePtr << 24) | ((fogR & 0xFF) << 16) | ((fogG & 0xFF) << 8) | (fogB & 0xFF);
+            if (key != sLastKey) {
+                sLastKey = key;
+                fprintf(stderr, "[bg-fog] tintMode=%d fog=(%d,%d,%d) fogA=%d pal[0]=0x%04X pal[64]=0x%04X\n",
+                        *gBackgroundTintModePtr, fogR, fogG, fogB, fogA,
+                        PAL_TO_NATIVE(gGameStatusPtr->backgroundPalette[0]),
+                        PAL_TO_NATIVE(gGameStatusPtr->backgroundPalette[64]));
+            }
+        }
+#endif
         switch (*gBackgroundTintModePtr) {
             case ENV_TINT_NONE:
             case ENV_TINT_SHROUD:

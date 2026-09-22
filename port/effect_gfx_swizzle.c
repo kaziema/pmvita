@@ -267,11 +267,16 @@ int effect_gfx_load_and_swizzle(u32 romStart, u32 romEnd) {
 
     free(blob);
 
-    static int sLoadCount = 0;
-    if (sLoadCount < 5) {
-        fprintf(stderr, "[effect_gfx_swizzle] Loaded ROM 0x%X-0x%X (%u bytes, %d symbols)\n",
-                segInfo->romStart, segInfo->romEnd, blobSize, numSymbols);
-        sLoadCount++;
+    // Log each segment once. A flat cap hid which effects ever load, which is the
+    // first thing I need from a tester's log when an effect renders wrong.
+    {
+        static u8 sLogged[NUM_EFFECT_GFX_SEGMENTS];
+        s32 segIndex = (s32)(segInfo - sEffectGfxSegments);
+        if (segIndex >= 0 && segIndex < NUM_EFFECT_GFX_SEGMENTS && !sLogged[segIndex]) {
+            sLogged[segIndex] = 1;
+            fprintf(stderr, "[effect_gfx_swizzle] Loaded ROM 0x%X-0x%X (%u bytes, %d symbols)\n",
+                    segInfo->romStart, segInfo->romEnd, blobSize, numSymbols);
+        }
     }
 
     return 1;
