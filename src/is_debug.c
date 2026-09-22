@@ -16,13 +16,22 @@ typedef struct {
 char* is_debug_print(char* arg0, const char* str, size_t count);
 
 #if !VERSION_PAL
+#ifdef PORT
+// The ISViewer debug cartridge this file talks to doesn't exist here. Nothing on PORT calls
+// printf/osSyncPrintf/rmonPrintf, and this real printf() only conflicts with libc's once
+// <stdio.h> is visible, so the rest of the file is dropped for PORT builds.
+void is_debug_init(void) {
+}
+#else
 void is_debug_init(void) {
     osEPiWriteIo(nuPiCartHandle, (u32) &gISVDbgPrnAdrs->put, 0);
     osEPiWriteIo(nuPiCartHandle, (u32) &gISVDbgPrnAdrs->get, 0);
     osEPiWriteIo(nuPiCartHandle, (u32) &gISVDbgPrnAdrs->magic, ASCII_TO_U32('I', 'S', '6', '4'));
 }
 #endif
+#endif
 
+#ifndef PORT
 void printf(const char* fmt, ...) {
     va_list args;
     va_start(args, fmt);
@@ -95,3 +104,4 @@ void is_debug_panic(const char* message, char* file, s32 line) {
     osSyncPrintf("File:%s Line:%d  %s \n", file, line, message);
     do {} while (true);
 }
+#endif // !PORT

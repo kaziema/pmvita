@@ -74,8 +74,15 @@
 #ifdef DEBUG
 #define IS_DEBUG_PANIC(statement, file, line) is_debug_panic(statement, file, line)
 #elif defined(PORT)
-// PORT builds: halt on assertion failures to catch buffer overflows early
-#define IS_DEBUG_PANIC(statement, file, line) do { abort(); } while(0)
+#include <stdio.h>
+// PORT builds: halt on assertion failures to catch buffer overflows early. I lost hours
+// tracing crashes back to a plain abort() with no clue which ASSERT fired, so log first.
+#define IS_DEBUG_PANIC(statement, file, line) \
+    do { \
+        fprintf(stderr, "[PANIC] %s at %s:%d\n", statement, file, line); \
+        fflush(stderr); \
+        abort(); \
+    } while (0)
 #else
 #define IS_DEBUG_PANIC(statement, file, line) do {} while(0)
 #endif

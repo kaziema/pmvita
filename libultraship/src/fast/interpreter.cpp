@@ -2274,6 +2274,12 @@ void Interpreter::AdjustVIewportOrScissor(XYWidthHeight* area) {
             if (area->x <= 16.0f && area->x + area->width >= nativeW - 16.0f) {
                 newX = 0.0f;
                 newWidth = nativeW * ratioX;
+            } else if (fabsf((area->x + area->width / 2.0f) - nativeW / 2.0f) <= 1.0f && area->width >= 250.0f) {
+                // A centered cinematic viewport, like the intro's, sits inside the theater curtains.
+                // The curtain opening grows by "extra" on each side, so this grows with it.
+                const float extra = (nativeW / 2.0f) * (ratioX / ratioY - 1.0f);
+                newX = (area->x - extra - nativeW / 2.0f) * ratioY + (nativeW * ratioX) / 2.0f;
+                newWidth = (area->width + 2.0f * extra) * ratioY;
             } else {
                 newX = (area->x - nativeW / 2.0f) * ratioY + (nativeW * ratioX) / 2.0f;
                 newWidth = area->width * ratioY;
