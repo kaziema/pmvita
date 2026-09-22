@@ -2,7 +2,7 @@
 
 This is built on top of [PaperShip](https://github.com/versacepapermario/papermario-pc-upload), the decomp-based port of Paper Mario 64 running on [libultraship](https://github.com/Kenix3/libultraship), retargeted for PS Vita hardware.
 
-## Flowers where they're due
+## Flowers Where They're Due
 
 This project stands entirely on other people's work and I want to say that up front:
 
