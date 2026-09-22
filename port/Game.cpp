@@ -25,9 +25,7 @@
 // 2ship2harkinian both use this exact value on the same libultraship stack.
 int _newlib_heap_size_user = 256 * 1024 * 1024;
 
-// The code segment ends close to a 64KB boundary, and vita-elf-create needs about 4.4KB of
-// free space after it. When the code lands within that window the build fails with "segment 1
-// overlaps". I pad the code segment so it sits well clear of the boundary.
+// Keeps the code segment clear of a 64KB boundary vita-elf-create needs free space after.
 extern "C" __attribute__((used)) const unsigned char port_text_segment_padding[24 * 1024] = { 0 };
 #endif
 
@@ -52,6 +50,8 @@ void port_load_map_textures(void);
 // Game mode
 void set_game_mode(s16 mode);
 s16 get_game_mode(void);
+extern s32 gBattleState;
+extern s32 gBattleSubState;
 
 // Simulate N64 framebuffer cycling (NuSystemShims.cpp)
 void port_cycle_framebuffer(void);
@@ -181,6 +181,22 @@ void push_frame() {
     }
 
     sPushFrameCount++;
+
+#ifdef __vita__
+    // Demo-freeze watchdog: logs script/battle state once a second while demoState is active.
+    if (gGameStatusPtr != nullptr && gGameStatusPtr->demoState != 0) {
+        static int sDemoWatchdogCount = 0;
+        if (++sDemoWatchdogCount >= 30) {
+            sDemoWatchdogCount = 0;
+            fprintf(stderr,
+                    "[demo-watch] demoState=%d mode=%d mainScriptID=%d gBattleState=%d gBattleSubState=%d "
+                    "demoButtonInput=0x%X demoStickX=%d demoStickY=%d\n",
+                    gGameStatusPtr->demoState, get_game_mode(), gGameStatusPtr->mainScriptID, gBattleState,
+                    gBattleSubState, (unsigned)(uint16_t)gGameStatusPtr->demoButtonInput,
+                    gGameStatusPtr->demoStickX, gGameStatusPtr->demoStickY);
+        }
+    }
+#endif
 
     // FPS diagnostic: print every 300 frames
     {

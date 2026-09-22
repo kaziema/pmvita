@@ -17,9 +17,7 @@ char* is_debug_print(char* arg0, const char* str, size_t count);
 
 #if !VERSION_PAL
 #ifdef PORT
-// The ISViewer debug cartridge this file talks to doesn't exist here. Nothing on PORT calls
-// printf/osSyncPrintf/rmonPrintf, and this real printf() only conflicts with libc's once
-// <stdio.h> is visible, so the rest of the file is dropped for PORT builds.
+// No ISViewer cartridge on PORT, and this file's own printf() conflicts with libc's.
 void is_debug_init(void) {
 }
 #else

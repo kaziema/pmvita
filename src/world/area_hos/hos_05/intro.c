@@ -796,9 +796,7 @@ BSS f32 N(AnimBowser_FlyOff_InitialY);
 BSS f32 N(AnimKammy_FlyOff_InitialY);
 BSS char N(D_8024F37C)[0x4];
 #ifdef PORT
-// The script indexes this as a 30 entry array (ArrayVar 0 to 29). The N64 build kept the two
-// original variables next to each other, but the linker here orders them differently, so
-// ArrayVar(17) landed on the narrator's list pointer. It is one real array instead.
+// Script indexes this as ArrayVar 0-29; my linker doesn't keep it adjacent to the next var like N64 did.
 BSS s32 N(D_8024F380)[30];
 #else
 BSS s32 N(D_8024F380);

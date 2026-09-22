@@ -7,8 +7,7 @@
 #ifdef PORT
 #include <stdio.h>
 extern float GameEngine_GetAspectRatio(void);
-// On a wide window the background and world fill the whole width, so the black side borders
-// of the original 296px frame must not be drawn over them.
+// Skip the old black side borders once widescreen fills that width itself.
 #define PORT_IS_WIDESCREEN() (GameEngine_GetAspectRatio() > (4.0f / 3.0f) + 0.01f)
 #endif
 

@@ -149,9 +149,7 @@ Gfx TheaterGfx[] ={
 #ifdef PORT
 extern float GameEngine_GetAspectRatio(void);
 
-// PORT: On a wide screen the two walls slide out to the screen edges, and the floor and valance
-// widen. The walls have to be drawn separately from the rest for that. Each side holds the wall
-// and the shadows next to it.
+// PORT: walls slide to the screen edges instead of stretching; each side draws separately.
 Gfx PortTheaterLeftSideGfx[] = {
     gsSPDisplayList(TheaterLeftWallGfx),
     gsDPPipeSync(),

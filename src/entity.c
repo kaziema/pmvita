@@ -1053,7 +1053,8 @@ void load_simple_entity_data(Entity* entity, EntityBlueprint* bp, s32 listIndex)
     }
 
     if (is_entity_data_loaded(entity, bp, &loadedStart, &loadedEnd)) {
-        if (totalSize + ((bp->dma.end - bp->dma.start) >> 2) > 0x5FFCU) {
+        // Was a bare 0x5FFCU (N64 heap size), stale now that PORT's heap is bigger.
+        if (totalSize + ((bp->dma.end - bp->dma.start) >> 2) > (WORLD_ENTITY_HEAP_SIZE / 4)) {
             get_entity_type(entity->listIndex);
             get_entity_type(entity->listIndex);
             PANIC();

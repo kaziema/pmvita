@@ -14,9 +14,7 @@ static void port_draw_bg_ext_rect(s32 x0, s32 x1, s32 y0, s32 y1, s32 texel) {
     gSPWideTextureRectangle(gMainGfxPos++, x0 * 4, y0 * 4, x1 * 4, y1 * 4, G_TX_RENDERTILE, texel * 32, 0, 4096, 1024);
 }
 
-// The background is a panorama that wraps every bgMaxX pixels. On a window wider than 4:3 I keep
-// drawing it past both edges of the original strip, continuing the wrap, so it reaches the
-// window edges. extra is how many pixels past each edge of the 320px frame need covering.
+// Continues the wrapping panorama past both edges so it reaches a wider window.
 static void port_draw_bg_extension(s32 bgMinX, s32 bgMaxX, s32 bgXOffset, s32 extra, s32 y0, s32 y1) {
     s32 t0 = (bgMaxX - bgXOffset) % bgMaxX; // texel shown at x = bgMinX
     s32 extL = bgMinX + extra;

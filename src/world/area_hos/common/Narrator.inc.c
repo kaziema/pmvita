@@ -41,8 +41,7 @@ void N(UpdateIntroMessages)(IntroMessage** introMessageLists) {
 #ifdef PORT
     port_heap_check_all();
 
-    // Something on Vita overwrites CurMessageList with a heap pointer. The narrator is the only
-    // code that should move it, so put it back to where the narrator left it last frame.
+    // Restore CurMessageList if anything but me moved it since last frame.
     if (N(CurMessageList) != nullptr && sPortListBackup != nullptr && N(CurMessageList) != sPortListBackup) {
         static s32 sRestoreLogCount = 0;
         if (sRestoreLogCount++ < 5) {
@@ -111,8 +110,7 @@ void N(UpdateIntroMessages)(IntroMessage** introMessageLists) {
     if (opacity > 0) {
         messageID = N(CurMessageList)->messageID;
 #ifdef PORT
-        // Intro message IDs are 1..0x1A or INTRO_MSG_BLANK. Anything else means
-        // CurMessageList is corrupt, and draw_msg would treat it as a pointer.
+        // Valid IDs are 1..0x1A or INTRO_MSG_BLANK; anything else is a corrupt pointer.
         if (messageID != 0 && messageID != INTRO_MSG_BLANK && (u32)messageID > 0xFFFF) {
             static s32 sBadMsgLogCount = 0;
             if (sBadMsgLogCount++ < 5) {
@@ -140,8 +138,7 @@ void N(UpdateIntroMessages)(IntroMessage** introMessageLists) {
             gPortWatchAddr = NULL;
 #endif
 #ifdef PORT
-            // The ID gets read again after get_msg_lines(), and on Vita that second read came
-            // back as garbage. Log it, and draw with the ID that passed the check above.
+            // Re-reading the ID here used to come back garbage; draw with the checked copy.
             if (N(CurMessageList)->messageID != messageID) {
                 static s32 sChangedLogCount = 0;
                 if (sChangedLogCount++ < 5) {

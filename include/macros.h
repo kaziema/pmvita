@@ -75,8 +75,7 @@
 #define IS_DEBUG_PANIC(statement, file, line) is_debug_panic(statement, file, line)
 #elif defined(PORT)
 #include <stdio.h>
-// PORT builds: halt on assertion failures to catch buffer overflows early. I lost hours
-// tracing crashes back to a plain abort() with no clue which ASSERT fired, so log first.
+// PORT builds: halt on assertion failures, logging which one fired first.
 #define IS_DEBUG_PANIC(statement, file, line) \
     do { \
         fprintf(stderr, "[PANIC] %s at %s:%d\n", statement, file, line); \
@@ -135,9 +134,7 @@ typedef s32 Difficulty2D[AC_DIFFICULTY_LEN][2];
 #define LAST_DEMO_SCENE_IDX 18
 
 #ifdef PORT
-// PORT builds need more heap than the original N64 sizing, even on 32-bit
-// Vita. I tried the N64 sizes on Vita and the sprite heap ran out, so NPC
-// sprites failed to load.
+// PORT needs more heap than N64 sizing even on 32-bit Vita; N64 sizes starved the sprite heap.
 #define WORLD_ENTITY_HEAP_SIZE 0x5FFF0  // 4x for 64-bit pointer expansion
 #define COLLISION_HEAP_SIZE 0xC0000     // 8x for 64-bit pointer expansion + complex maps
 #else

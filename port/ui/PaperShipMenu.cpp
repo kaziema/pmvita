@@ -268,17 +268,15 @@ void PaperShipGui::SetupMenu() {
     menu->Hide();
 
 #ifdef PORT_FORCE_4X3
-    // Native 4:3 build: the GUI draws the game framebuffer at 4:3 with pillarboxing
-    // in widescreen windows
+    // Native 4:3 build: pillarbox the framebuffer in widescreen windows.
     CVarSetInteger(CVAR_SETTING("LowResMode"), 1);
 #else
-    // Widescreen build: fill the whole window. This also overrides a saved value of 1.
+    // Widescreen build: fill the whole window, overriding any saved value of 1.
     CVarSetInteger(CVAR_SETTING("LowResMode"), 0);
 #endif
 
 #ifdef __vita__
-    // The Vita renders at its native 960x544. A 2x internal resolution would be a
-    // 1920x1090 render target, which is too heavy for its memory and GPU.
+    // 2x internal resolution would be a 1920x1090 render target, too heavy for the Vita.
     float savedRes = 1.0f;
 #else
     // Apply saved internal resolution on startup (minimum 2x to avoid 1x rendering artifacts)

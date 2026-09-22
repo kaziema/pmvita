@@ -21,6 +21,7 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <math.h>
+#include <errno.h>
 
 void port_debug_log(const char* fmt, ...) {
     va_list ap;
@@ -94,16 +95,16 @@ static void flash_load_from_disk(void) {
 static void flash_flush_to_disk(void) {
     FILE* f = fopen(SAVE_FILENAME, "wb");
     if (f) {
-        fwrite(flash_data, 1, FLASH_SIZE, f);
-        fclose(f);
+        size_t written = fwrite(flash_data, 1, FLASH_SIZE, f);
+        s32 closeResult = fclose(f);
+        fprintf(stderr, "[Flash] Flushed %zu/%d bytes to %s (fclose=%d)\n", written, FLASH_SIZE, SAVE_FILENAME,
+                closeResult);
     } else {
-        fprintf(stderr, "[Flash] ERROR: Could not write save file %s\n", SAVE_FILENAME);
+        fprintf(stderr, "[Flash] ERROR: Could not write save file %s (errno=%d)\n", SAVE_FILENAME, errno);
     }
 }
 
-// A save writes dozens of pages back to back, and each one used to rewrite the whole 128KB
-// file. That stalls the Vita for seconds, so the writes only mark the data dirty and the
-// main loop calls this once per frame.
+// Batches dozens of per-page writes into one flush a frame instead of rewriting 128KB each time.
 void port_flash_flush_if_dirty(void) {
     if (flash_dirty) {
         flash_dirty = 0;
@@ -155,6 +156,12 @@ s32 osFlashWriteArray(u32 pageNum) {
 
     memcpy(flash_data + offset, flash_write_buf, FLASH_PAGE_SIZE);
     flash_dirty = 1;
+
+    static int sWriteLogCount = 0;
+    if (sWriteLogCount < 20) {
+        fprintf(stderr, "[Flash] WriteArray page=%u (dirty set)\n", pageNum);
+        sWriteLogCount++;
+    }
     return 0;
 }
 

@@ -69,8 +69,7 @@ std::stack<std::string> currentDir;
 
 #define TEXTURE_CACHE_MAX_SIZE 500
 
-// PORT: Horizontal scale applied to vertex X under the current viewport, so world
-// geometry keeps its proportions when the viewport is wider than 4:3. Reset every frame.
+// PORT: keeps vertex X proportional under a wider-than-4:3 viewport. Reset every frame.
 static float sVertexXScale = 1.0f;
 
 namespace Fast {
@@ -2266,17 +2265,14 @@ void Interpreter::AdjustVIewportOrScissor(XYWidthHeight* area) {
         float newX = area->x * ratioX;
         float newWidth = area->width * ratioX;
 
-        // PORT: On a window wider than the native aspect, an area that spans the whole
-        // frame is stretched to the full window width. Anything else keeps a uniform
-        // scale, centered, so it lines up with the aspect-corrected 2D draws.
+        // PORT: a full-frame area stretches to the window width; anything else stays centered.
         if (ratioX > ratioY * 1.01f) {
             const float nativeW = (float)mNativeDimensions.width;
             if (area->x <= 16.0f && area->x + area->width >= nativeW - 16.0f) {
                 newX = 0.0f;
                 newWidth = nativeW * ratioX;
             } else if (fabsf((area->x + area->width / 2.0f) - nativeW / 2.0f) <= 1.0f && area->width >= 250.0f) {
-                // A centered cinematic viewport, like the intro's, sits inside the theater curtains.
-                // The curtain opening grows by "extra" on each side, so this grows with it.
+                // Centered cinematic viewport (the intro's), grows with the curtain opening.
                 const float extra = (nativeW / 2.0f) * (ratioX / ratioY - 1.0f);
                 newX = (area->x - extra - nativeW / 2.0f) * ratioY + (nativeW * ratioX) / 2.0f;
                 newWidth = (area->width + 2.0f * extra) * ratioY;
@@ -2322,9 +2318,7 @@ void Interpreter::CalcAndSetViewport(const F3DVp_t* viewport) {
 
     AdjustVIewportOrScissor(&mRdp->viewport);
 
-    // PORT: Vertex X is compressed by however much wider the final viewport is than a
-    // uniform-scale mapping of the game's viewport would be. This is (4/3)/aspect for a
-    // full-frame viewport, and less for the world camera's 296px wide one.
+    // PORT: compress vertex X to match how much wider the mapped viewport got.
     if (!mFbActive && mRdp->viewport.width > 0.0f) {
         sVertexXScale = width * RATIO_Y(mActiveFrameBuffer, mCurDimensions) / mRdp->viewport.width;
     }
@@ -3004,8 +2998,7 @@ void Interpreter::GfxDpFillRectangle(int32_t ulx, int32_t uly, int32_t lrx, int3
         lrx = 2048;
         lry = 2048;
     } else if (!mFbActive && ulx <= (16 * 4) && lrx >= (304 * 4)) {
-        // PORT: Any fill that spans the frame (screen fades, viewport fades, the top and
-        // bottom borders) has to cover the wider window too. Only X is widened.
+        // PORT: widen a full-frame fill (fades, borders) to cover the wider window too.
         ulx = -1024;
         lrx = 2048;
     }
@@ -4936,8 +4929,7 @@ static void gfx_step() {
         }
     } else
 #else
-    // PORT: The OTR opcodes are skipped, but the port draws its widescreen background with the
-    // wide texture rect. Unhandled, its two data packets would run as geometry commands.
+    // PORT: still need the wide texture rect for the widescreen background, despite skipping OTR.
     if (opcode == OTR_G_TEXRECT_WIDE) {
         handled = true;
         sUnhandledCount = 0;
@@ -5080,8 +5072,7 @@ void Interpreter::StartFrame() {
     mWapi->GetDimensions(&mGfxCurrentWindowDimensions.width, &mGfxCurrentWindowDimensions.height, &mCurWindowPosX,
                          &mCurWindowPosY);
 
-    // PORT: Widescreen is on by default. Building with -DPORT_FORCE_4X3 clamps the
-    // render width to 4:3 for the native aspect ratio build.
+    // PORT: widescreen by default; -DPORT_FORCE_4X3 clamps to 4:3.
     {
         uint32_t h = mGfxCurrentWindowDimensions.height;
 #ifdef PORT_FORCE_4X3
