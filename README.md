@@ -4,7 +4,7 @@ This is built on top of [PaperShip](https://github.com/versacepapermario/paperma
 
 ## Flowers Where They're Due
 
-This project stands entirely on other people's work and I want to say that up front:
+This project stands entirely on other people's shoulders and I want to say that up front:
 
 - **[versacepapermario](https://github.com/versacepapermario)** built PaperShip, which this is built from. All the hard decomp-to-modern-hardware bridging work (the PORT layer, the audio bridge, the UI, the ROM loading) is theirs.
 - **The [Paper Mario Decompilation Team](https://github.com/pmret/papermario)** did the actual multi-year reverse engineering that made any of this possible.
