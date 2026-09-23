@@ -40,6 +40,7 @@ void gfxPreNMI_Callback(void);
 void create_audio_system(void);
 void load_engine_data(void);
 void step_game_loop(void);
+extern "C" const char gPortBuildStamp[];
 void gfx_draw_frame(void);
 void gfx_task_background(void);
 
@@ -274,6 +275,9 @@ void push_frame() {
  * window-driven main loop.
  */
 void boot_main_pc() {
+    // Stamp the build into every log. Decoding a crash dump needs the exact binary that
+    // produced it, and a log with no build identity costs a whole test round to resolve.
+    fprintf(stderr, "[PaperShip] build %s\n", gPortBuildStamp);
     fprintf(stderr, "[PaperShip] boot_main_pc: start\n");
 
     // Skip TV mode setup (osViSetMode) - libultraship handles display

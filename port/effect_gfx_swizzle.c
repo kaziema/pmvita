@@ -80,11 +80,7 @@ static void* resolve_seg9_addr(u32 seg9Addr, const EffectGfxSymbol* symbols, s32
 /**
  * Convert N64 big-endian vertices and copy into a PC Vtx array.
  */
-static void swizzle_vertices(const u8* blob, const EffectGfxSymbol* sym) {
-    s32 numVerts = sym->sizeBytes / N64_VTX_SIZE;
-    Vtx* destVtx = (Vtx*)sym->pcArray;
-    const u8* src = blob + sym->seg9Offset;
-
+static void convert_vertices(const u8* src, Vtx* destVtx, s32 numVerts) {
     memset(destVtx, 0, numVerts * sizeof(Vtx));
 
     for (s32 i = 0; i < numVerts; i++) {
@@ -113,13 +109,18 @@ static void swizzle_vertices(const u8* blob, const EffectGfxSymbol* sym) {
     }
 }
 
+static void swizzle_vertices(const u8* blob, const EffectGfxSymbol* sym) {
+    convert_vertices(blob + sym->seg9Offset, (Vtx*)sym->pcArray, sym->sizeBytes / N64_VTX_SIZE);
+}
+
 /**
  * Convert an N64 display list from the blob and write into a PC Gfx array.
  * Resolves internal segment 9 addresses to C array pointers.
  */
 static void swizzle_display_list(const u8* blob, u32 blobSize,
                                   const EffectGfxSymbol* sym,
-                                  const EffectGfxSymbol* allSymbols, s32 numSymbols) {
+                                  const EffectGfxSymbol* allSymbols, s32 numSymbols,
+                                  Vtx* vtxPool, u32* poolCursor, u32 poolCount) {
     s32 numCmds = sym->sizeBytes / N64_GFX_CMD_SIZE;
     Gfx* dest = (Gfx*)sym->pcArray;
     const u8* src = blob + sym->seg9Offset;
@@ -134,8 +135,25 @@ static void swizzle_display_list(const u8* blob, u32 blobSize,
 
         switch (opcode) {
             case F3DEX2_G_VTX: {
-                // w1: segment 9 vertex address → resolve to C VTX array
-                void* pcVtx = resolve_seg9_addr(w1, allSymbols, numSymbols);
+                // A single G_VTX often loads more vertices than the chunk it points at, running
+                // into the chunks after it because segment 9 is one contiguous block on N64.
+                // Chunks are separate arrays here, so convert exactly what this command asks for
+                // straight out of the blob into a per-segment pool and point the command there.
+                u32 vtxOff = w1 & 0x00FFFFFF;
+                u32 numVerts = (w0 >> 12) & 0xFF;
+                void* pcVtx = NULL;
+
+                if (vtxPool != NULL && (w1 >> 24) == 0x09 && numVerts > 0 &&
+                    *poolCursor + numVerts <= poolCount &&
+                    vtxOff + numVerts * N64_VTX_SIZE <= blobSize) {
+                    Vtx* slot = &vtxPool[*poolCursor];
+                    convert_vertices(blob + vtxOff, slot, numVerts);
+                    *poolCursor += numVerts;
+                    pcVtx = slot;
+                } else {
+                    pcVtx = resolve_seg9_addr(w1, allSymbols, numSymbols);
+                }
+
                 dest[i].words.w0 = (uintptr_t)w0;
                 dest[i].words.w1 = pcVtx ? (uintptr_t)pcVtx : (uintptr_t)w1;
                 break;
@@ -272,6 +290,9 @@ int effect_gfx_load_and_swizzle(u32 romStart, u32 romEnd) {
 
     const EffectGfxSymbol* symbols = segInfo->symbols;
     s32 numSymbols = segInfo->numSymbols;
+    Vtx* vtxPool = NULL;
+    u32 poolCount = 0;
+    u32 poolCursor = 0;
 
     // Pass 1: Copy texture/image data (no byte-swap — Fast3D handles N64 endian)
     for (s32 i = 0; i < numSymbols; i++) {
@@ -291,10 +312,43 @@ int effect_gfx_load_and_swizzle(u32 romStart, u32 romEnd) {
         }
     }
 
+    // Count the vertices every G_VTX in this segment asks for, so the pool they get converted
+    // into is sized exactly. Reused per segment, since segments reload on map changes.
+    {
+        static Vtx* sSegVtxPool[NUM_EFFECT_GFX_SEGMENTS];
+        static u32 sSegVtxPoolCount[NUM_EFFECT_GFX_SEGMENTS];
+        s32 segIndex = (s32)(segInfo - sEffectGfxSegments);
+        u32 needed = 0;
+
+        for (s32 i = 0; i < numSymbols; i++) {
+            if (symbols[i].type != EFX_SYM_GFX) {
+                continue;
+            }
+            for (u32 c = 0; c < symbols[i].sizeBytes / N64_GFX_CMD_SIZE; c++) {
+                const u8* cmd = blob + symbols[i].seg9Offset + c * N64_GFX_CMD_SIZE;
+                u32 w0 = read_be_u32(cmd);
+                if (((w0 >> 24) & 0xFF) == F3DEX2_G_VTX) {
+                    needed += (w0 >> 12) & 0xFF;
+                }
+            }
+        }
+
+        if (segIndex >= 0 && segIndex < NUM_EFFECT_GFX_SEGMENTS && needed > 0) {
+            if (sSegVtxPool[segIndex] == NULL || sSegVtxPoolCount[segIndex] < needed) {
+                free(sSegVtxPool[segIndex]);
+                sSegVtxPool[segIndex] = (Vtx*)malloc(needed * sizeof(Vtx));
+                sSegVtxPoolCount[segIndex] = sSegVtxPool[segIndex] ? needed : 0;
+            }
+            vtxPool = sSegVtxPool[segIndex];
+            poolCount = sSegVtxPoolCount[segIndex];
+        }
+    }
+
     // Pass 3: Convert display lists (N64 8-byte → PC 16-byte, resolve pointers)
     for (s32 i = 0; i < numSymbols; i++) {
         if (symbols[i].type == EFX_SYM_GFX) {
-            swizzle_display_list(blob, blobSize, &symbols[i], symbols, numSymbols);
+            swizzle_display_list(blob, blobSize, &symbols[i], symbols, numSymbols,
+                                 vtxPool, &poolCursor, poolCount);
         }
     }
 

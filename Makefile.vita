@@ -198,7 +198,13 @@ LIBS := -lstdc++ \
 # Build rules
 # -----------------------------------------------------------------------------
 
-all: $(TARGET).vpk
+all: build_stamp $(TARGET).vpk
+
+# The boot log prints this stamp to identify the binary. It has to be rebuilt every time or it
+# reports whenever port/build_stamp.c last happened to compile, which is worse than no stamp.
+.PHONY: build_stamp
+build_stamp:
+	@rm -f port/build_stamp.o port/build_stamp.ok f/port_build_stamp.o
 
 # Caught the hard way once already: sce_sys images have to be 8-bit indexed
 # PNGs (no alpha), not RGBA truecolor, or the Vita installer fails with

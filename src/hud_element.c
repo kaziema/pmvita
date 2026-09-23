@@ -118,6 +118,10 @@ BSS s32 D_8015796C;
 BSS HudCacheEntry gHudElementCacheTableRasterWorld[192];
 BSS HudCacheEntry gHudElementCacheTablePaletteWorld[192];
 BSS u8* gHudElementCacheBufferBattle;
+#ifdef PORT
+// True while the cache buffer points at the static aux cache rather than a heap block.
+static s32 sCacheBufferIsStatic = FALSE;
+#endif
 BSS s32 gHudElementCacheSizeBattle;
 BSS s32 D_80158578[2];
 BSS HudCacheEntry gHudElementCacheTableRasterBattle[192];
@@ -648,8 +652,14 @@ void hud_element_clear_cache(void) {
         if (gHudElementAuxCache == nullptr) {
             gHudElementCacheBuffer = general_heap_malloc(gHudElementCacheCapacity / 2);
             ASSERT(gHudElementCacheBuffer);
+#ifdef PORT
+            sCacheBufferIsStatic = FALSE;
+#endif
         } else {
             gHudElementCacheBuffer = gHudElementAuxCache;
+#ifdef PORT
+            sCacheBufferIsStatic = TRUE;
+#endif
         }
         gHudElementCacheBufferBattle = gHudElementCacheBuffer;
         *gHudElementCacheSize = 0;
@@ -681,6 +691,13 @@ void init_hud_element_list(void) {
             if (gHudElementCacheBufferBattle != D_80200000) {
                 general_heap_free(gHudElementCacheBufferBattle);
             }
+#elif defined(PORT)
+            // The aux cache the pause and file select menus install is a static buffer here,
+            // never a heap block, so freeing it splices garbage into the general heap.
+            if (!sCacheBufferIsStatic) {
+                general_heap_free(gHudElementCacheBufferBattle);
+            }
+            sCacheBufferIsStatic = FALSE;
 #else
             general_heap_free(gHudElementCacheBufferBattle);
 #endif
@@ -2084,11 +2101,21 @@ void ALT_clear_hud_element_cache(void) {
         }
     } else {
         if (gHudElementAuxCache == nullptr) {
+#ifdef PORT
+            if (!sCacheBufferIsStatic) {
+                heap_free(gHudElementCacheBuffer);
+            }
+            sCacheBufferIsStatic = FALSE;
+#else
             heap_free(gHudElementCacheBuffer);
+#endif
             gHudElementCacheBuffer = heap_malloc(gHudElementCacheCapacity / 2);
             ASSERT(gHudElementCacheBuffer);
         } else {
             gHudElementCacheBuffer = gHudElementAuxCache;
+#ifdef PORT
+            sCacheBufferIsStatic = TRUE;
+#endif
         }
         gHudElementCacheBufferBattle = gHudElementCacheBuffer;
         *gHudElementCacheSize = 0;
