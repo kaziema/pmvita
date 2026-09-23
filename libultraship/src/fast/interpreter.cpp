@@ -1771,6 +1771,7 @@ void Interpreter::GfxSpModifyVertex(uint16_t vtx_idx, uint8_t where, uint32_t va
 bool gPortPostFillWatch = false;
 int gPortPostFillLogged = 0;
 int gPortPostFillFrames = 0;
+int gPortPostFillTotal = 0;
 
 void Interpreter::GfxSpTri1(uint8_t vtx1_idx, uint8_t vtx2_idx, uint8_t vtx3_idx, bool is_rect) {
     // Bounds check vertex indices against loaded_vertices array (MAX_VERTICES + 4 entries)
@@ -1783,12 +1784,19 @@ void Interpreter::GfxSpTri1(uint8_t vtx1_idx, uint8_t vtx2_idx, uint8_t vtx3_idx
     struct LoadedVertex* v3 = &mRsp->loaded_vertices[vtx3_idx];
     struct LoadedVertex* v_arr[3] = { v1, v2, v3 };
 
-    // PORT: name the first few draws issued after a full-screen fade fill.
-    if (gPortPostFillWatch && gPortPostFillLogged < 10) {
-        gPortPostFillLogged++;
-        fprintf(stderr, "[afterfill] %s x=(%.3f %.3f %.3f) y=(%.3f %.3f %.3f) tex=%p cc=0x%llX\n",
-                is_rect ? "rect" : "tri", v1->x, v2->x, v3->x, v1->y, v2->y, v3->y,
-                (void*)mRdp->texture_to_load.addr, (unsigned long long)mRdp->combine_mode);
+    // PORT: after a widened fade fill, name anything that still paints the widescreen columns.
+    // Those are the only draws that can put scene back at the edges of a finished fade.
+    if (gPortPostFillWatch && gPortPostFillLogged < 6 && gPortPostFillTotal < 80) {
+        float minX = v1->x < v2->x ? (v1->x < v3->x ? v1->x : v3->x) : (v2->x < v3->x ? v2->x : v3->x);
+        float maxX = v1->x > v2->x ? (v1->x > v3->x ? v1->x : v3->x) : (v2->x > v3->x ? v2->x : v3->x);
+
+        if (minX < -0.9f || maxX > 0.9f) {
+            gPortPostFillLogged++;
+            gPortPostFillTotal++;
+            fprintf(stderr, "[afterfill] f%d %s x=(%.3f..%.3f) y=(%.3f %.3f %.3f) tex=%p cc=0x%llX\n",
+                    gPortPostFillFrames, is_rect ? "rect" : "tri", minX, maxX, v1->y, v2->y, v3->y,
+                    (void*)mRdp->texture_to_load.addr, (unsigned long long)mRdp->combine_mode);
+        }
     }
 
     // if (rand()%2) return;
@@ -3067,11 +3075,15 @@ void Interpreter::GfxDpFillRectangle(int32_t ulx, int32_t uly, int32_t lrx, int3
         if (!found && sSeenCount < (int)(sizeof(sSeen) / sizeof(sSeen[0]))) {
             sSeen[sSeenCount++] = key;
             fprintf(stderr,
-                    "[fillrect] in=(%d,%d)-(%d,%d) widened=%d fb=%d cyc=%d cur=%dx%d nat=%dx%d "
-                    "scis=(%.0f,%.0f %.0fx%.0f)\n",
-                    inUlx, inUly, inLrx, inLry, widened ? 1 : 0, mFbActive ? 1 : 0, (int)(mode >> G_MDSFT_CYCLETYPE),
-                    mCurDimensions.width, mCurDimensions.height, mNativeDimensions.width, mNativeDimensions.height,
-                    mRdp->scissor.x, mRdp->scissor.y, mRdp->scissor.width, mRdp->scissor.height);
+                    "[fillrect] in=(%d,%d)-(%d,%d) widened=%d fb=%d cyc=%d cur=%ux%u win=%ux%u "
+                    "scis=(%d,%d %ux%u) vp=(%d,%d %ux%u) gwv=(%d,%d %ux%u) toFb=%d\n",
+                    inUlx, inUly, inLrx, inLry, widened ? 1 : 0, mFbActive ? 1 : 0,
+                    (int)(mode >> G_MDSFT_CYCLETYPE), mCurDimensions.width, mCurDimensions.height,
+                    mGfxCurrentWindowDimensions.width, mGfxCurrentWindowDimensions.height, (int)mRdp->scissor.x,
+                    (int)mRdp->scissor.y, mRdp->scissor.width, mRdp->scissor.height, (int)mRdp->viewport.x,
+                    (int)mRdp->viewport.y, mRdp->viewport.width, mRdp->viewport.height, (int)mGameWindowViewport.x,
+                    (int)mGameWindowViewport.y, mGameWindowViewport.width, mGameWindowViewport.height,
+                    mRendersToFb ? 1 : 0);
         }
     }
 
@@ -3095,7 +3107,7 @@ void Interpreter::GfxDpFillRectangle(int32_t ulx, int32_t uly, int32_t lrx, int3
     GfxDrawRectangle(ulx, uly, lrx, lry);
     mRdp->combine_mode = saved_combine_mode;
 
-    if (widened && gPortPostFillFrames < 6) {
+    if (widened && gPortPostFillFrames < 60) {
         gPortPostFillWatch = true;
     }
 }

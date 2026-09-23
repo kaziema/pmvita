@@ -1076,12 +1076,41 @@ ApiStatus evt_handle_call(Evt* script) {
     return ret;
 }
 
+#ifdef PORT
+// A script address outside the module image was never a script. Starting one walks the label
+// scan off the end of memory, so check it here and name the caller instead.
+static Bytecode sPortEmptyScript[] = { EVT_OP_RETURN, 0, EVT_OP_END, 0 };
+
+s32 port_script_addr_ok(const void* p) {
+    extern char _end;
+    uintptr_t addr = (uintptr_t)p;
+    uintptr_t lo = ((uintptr_t)sPortEmptyScript) & ~(uintptr_t)0x00FFFFFF;
+    uintptr_t hi = (uintptr_t)&_end;
+
+    return (addr & 3) == 0 && addr >= lo && addr < hi;
+}
+
+void* port_check_exec_source(const char* op, Evt* script, void* source) {
+    if (port_script_addr_ok(source)) {
+        return source;
+    }
+
+    fprintf(stderr, "[evtbad] %s source=%p from id=%d first=%p read=%p owner=(%d,%d)\n",
+            op, source, script->id, (void*)script->ptrFirstLine, (void*)script->ptrReadPos,
+            (s32)script->owner1.enemyID, (s32)script->owner2.npcID);
+    return sPortEmptyScript;
+}
+#endif
+
 ApiStatus evt_handle_exec1(Evt* script) {
     Bytecode* args = script->ptrReadPos;
     EvtScript* newSource = (EvtScript*)(intptr_t)evt_get_variable(script, *args++);
     Evt* newScript;
     s32 i;
 
+#ifdef PORT
+    newSource = (EvtScript*)port_check_exec_source("exec", script, newSource);
+#endif
     newScript = start_script_in_group(newSource, script->priority, 0, script->groupFlags);
 
     newScript->owner1 = script->owner1;
@@ -1108,6 +1137,9 @@ ApiStatus evt_handle_exec1_get_id(Evt* script) {
     Evt* newScript;
     s32 i;
 
+#ifdef PORT
+    newSource = (EvtScript*)port_check_exec_source("exec_get_id", script, newSource);
+#endif
     newScript = start_script_in_group(newSource, script->priority, 0, script->groupFlags);
 
     newScript->owner1 = script->owner1;
@@ -1133,6 +1165,9 @@ ApiStatus evt_handle_exec_wait(Evt* script) {
     Bytecode* args = script->ptrReadPos;
     EvtScript* newSource = (EvtScript*)(intptr_t)evt_get_variable(script, *args++);
 
+#ifdef PORT
+    newSource = (EvtScript*)port_check_exec_source("exec_wait", script, newSource);
+#endif
     start_child_script(script, newSource, 0);
     script->curOpcode = EVT_OP_INTERNAL_FETCH;
     return ApiStatus_FINISH;

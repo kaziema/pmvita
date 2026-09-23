@@ -143,6 +143,10 @@ void sort_scripts(void) {
     }
 }
 
+#ifdef PORT
+extern s32 port_script_addr_ok(const void* p);
+#endif
+
 void find_script_labels(Evt* script) {
     Bytecode* curLine;
     s32 type;
@@ -159,10 +163,27 @@ void find_script_labels(Evt* script) {
     j = 0;
     curLine = script->ptrNextLine;
     while (j < ARRAY_COUNT(script->labelIndices)) {
+#ifdef PORT
+        // Every read here has to land inside the module image. A script started from a bad
+        // pointer otherwise walks this loop straight off the end of memory.
+        if (!port_script_addr_ok(curLine) || !port_script_addr_ok(curLine + 2)) {
+            fprintf(stderr, "[evtbad] label scan left memory: id=%d first=%p at=%p owner=(%d,%d)\n",
+                    script->id, (void*)script->ptrFirstLine, (void*)curLine,
+                    (s32)script->owner1.enemyID, (s32)script->owner2.npcID);
+            return;
+        }
+#endif
         type = *curLine++;
         numArgs = *curLine++;
         label = *curLine;
         curLine += numArgs;
+#ifdef PORT
+        if (numArgs < 0 || numArgs > 64) {
+            fprintf(stderr, "[evtbad] label scan bad line: id=%d first=%p at=%p type=%d numArgs=%d\n",
+                    script->id, (void*)script->ptrFirstLine, (void*)(curLine - numArgs - 2), type, numArgs);
+            return;
+        }
+#endif
 
         if (type == 1) {
             return;
