@@ -47,17 +47,27 @@ Done so far:
 - Fixed a heap-sizing bug where Vita would have silently inherited 64-bit desktop heap sizes instead of the correct 32-bit N64-original ones
 - Vita boot path wired into the entry point: heap allocation, max CPU/GPU clocks, game loop moved onto a properly-stacked worker thread
 - libultraship `__vita__` patches ported in from Ghostship/2ship2harkinian: vitaGL scratch-buffer lifecycle, ARM NEON math, SDL2 input/window/framerate backend, OpenGL backend adjustments
-- Boots to gameplay and renders on hardware at roughly 30fps, with occasional frame hiccups still to chase down
 - LiveArea art and GitHub/Discord link buttons
 - Widescreen (16:9) rendering: the 3D world, backgrounds, and the intro's curtains and starry-sky scenes fill the screen instead of being boxed at 4:3
 - Controls mapped to the Vita: face buttons and D-pad for A/B/Z/D-pad, right stick for the four C buttons, no face button doubles as a C direction
 - Saving and loading, to `ux0:data/papership/papership_save.bin` on the memory card, independent of the installed app
 - Fixed several crashes traced to a corrupted intro script variable, a full background display list buffer, and an unguarded assertion macro that gave no diagnostic on failure
+- Fixed Mario's jump height and walk speed
+- Attract-mode demo plays through every scene again
+- Restored libultra's sin/cos lookup table
+- Entity drop shadows render
+- Message box images load (hammer block, heart block)
+- Ambient sounds update volume and panning again
+- Fixed a crash when creating a save file
+- Fixed effect display lists and vertex loads
+- Fixed heap corruption on unpause
+- Fixed a stray memory clear on every pause
+- Logs now open with a build stamp
+- Fixed Bowser's fire breath effect
 
 Still to do:
 - The intro's staged cutscene (Bowser, Kammy, and the Star Rod, between the curtains) still renders boxed at 4:3 inside the widescreen frame
 - Broader testing across areas, battles, and menus beyond the first area
-- Remaining performance hiccups
 - General playthrough coverage
 
 ## Known Issues
@@ -65,9 +75,11 @@ Still to do:
 - The intro's staged cutscene (the theater scene with character models, not the starry-sky narration) renders at 4:3 inside the wider frame around it.
 - Menus, text boxes, and the HUD stay at 4:3 by design; only the 3D world and full-frame backgrounds go widescreen.
 - Backgrounds that use the wavy-effect renderer (a handful of areas) aren't widened yet.
-- A crash was found in the title screen's idle attract-mode demo playback, most likely heap exhaustion when creating an animated NPC. Assertion failures now log which one fired and where before aborting, but the underlying cause isn't confirmed fixed.
 - Noticeable stutter during some area transitions (e.g. mid-intro, when the cutscene changes areas). This looks like real load time reading assets off the memory card rather than a bug, but hasn't been optimized.
 - Battles, chapters, shops, partners, and minigames are untested.
+- The castle in the intro has wrong textures.
+- Pause cleanup can still free a stale HUD element id, logged as `[hudfree]`.
+- Gameplay and battles run around 21 to 26fps against a 30fps target.
 
 ## Building
 
