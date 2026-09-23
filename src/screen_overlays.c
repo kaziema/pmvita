@@ -2,6 +2,11 @@
 #include "overlay.h"
 #include "include_asset.h"
 
+#ifdef PORT
+// Pixels of overfill on each side, enough for any window wider than 4:3.
+#define PORT_WIDE_FILL_MARGIN 240
+#endif
+
 BSS s32 screen_overlay_frontType;
 BSS f32 screen_overlay_frontZoom;
 BSS s32 screen_overlay_backType;
@@ -214,7 +219,14 @@ void _render_transition_stencil(u8 stencilType, f32 progress, ScreenOverlay* ove
             gDPSetCombineMode(gMainGfxPos++, G_CC_PRIMITIVE, G_CC_PRIMITIVE);
             gDPSetPrimColor(gMainGfxPos++, 0, 0, colR, colG, colB, progress);
             gDPSetScissor(gMainGfxPos++, G_SC_NON_INTERLACE, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+#ifdef PORT
+            // A 4:3 fill leaves the extra columns of a wide window showing the scene.
+            gDPFillWideRectangle(gMainGfxPos++, -PORT_WIDE_FILL_MARGIN, -PORT_WIDE_FILL_MARGIN,
+                                 SCREEN_WIDTH - 1 + PORT_WIDE_FILL_MARGIN,
+                                 SCREEN_HEIGHT - 1 + PORT_WIDE_FILL_MARGIN);
+#else
             gDPFillRectangle(gMainGfxPos++, 0, 0, SCREEN_WIDTH - 1, SCREEN_HEIGHT - 1);
+#endif
             gDPSetColorDither(gMainGfxPos++, G_CD_DISABLE);
             return;
         case OVERLAY_VIEWPORT_COLOR:
@@ -230,8 +242,16 @@ void _render_transition_stencil(u8 stencilType, f32 progress, ScreenOverlay* ove
             gDPSetCombineMode(gMainGfxPos++, G_CC_PRIMITIVE, G_CC_PRIMITIVE);
             gDPSetPrimColor(gMainGfxPos++, 0, 0, colR, colG, colB, progress);
             gDPSetScissor(gMainGfxPos++, G_SC_NON_INTERLACE, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+#ifdef PORT
+            // The world is drawn wider than the camera's 4:3 viewport, so filling only the
+            // viewport leaves the extra columns at each edge showing the scene through a fade.
+            gDPFillWideRectangle(gMainGfxPos++, -PORT_WIDE_FILL_MARGIN, camera->viewportStartY,
+                                 SCREEN_WIDTH - 1 + PORT_WIDE_FILL_MARGIN,
+                                 camera->viewportStartY + camera->viewportH);
+#else
             gDPFillRectangle(gMainGfxPos++, camera->viewportStartX, camera->viewportStartY,
                              camera->viewportStartX + camera->viewportW, camera->viewportStartY + camera->viewportH);
+#endif
             gDPSetColorDither(gMainGfxPos++, G_CD_DISABLE);
             return;
     }

@@ -63,6 +63,9 @@ void port_flash_flush_if_dirty(void);
 // Worker crash diagnostics
 void worker_dump_last(void);
 
+// Walks the heap node lists and reports the first inconsistency (43F0.c)
+void port_heap_check_all(void);
+
 // NuSystem state managed by our shim layer
 extern NUGfxFunc nuGfxFunc;
 extern u32 nuGfxDisplay;
@@ -183,6 +186,9 @@ void push_frame() {
 
     sPushFrameCount++;
 
+    // Time the work half of the frame (everything past the limiter) so a lag spike names itself.
+    auto portWorkStart = std::chrono::high_resolution_clock::now();
+
 #ifdef __vita__
     // Demo-freeze watchdog: logs script/battle state once a second while demoState is active.
     if (gGameStatusPtr != nullptr && gGameStatusPtr->demoState != 0) {
@@ -195,6 +201,17 @@ void push_frame() {
                     gGameStatusPtr->demoState, get_game_mode(), gGameStatusPtr->mainScriptID, gBattleState,
                     gBattleSubState, (unsigned)(uint16_t)gGameStatusPtr->demoButtonInput,
                     gGameStatusPtr->demoStickX, gGameStatusPtr->demoStickY);
+        }
+    }
+#endif
+
+#ifdef __vita__
+    // Was defined but never called, so heap damage went unreported. Check once a second.
+    {
+        static int sHeapCheckCount = 0;
+        if (++sHeapCheckCount >= 30) {
+            sHeapCheckCount = 0;
+            port_heap_check_all();
         }
     }
 #endif
@@ -250,6 +267,19 @@ void push_frame() {
     }
 
     GameEngine::EndAudioFrame();
+
+    {
+        static int sSlowLogged = 0;
+        double ms = std::chrono::duration<double, std::milli>(
+                        std::chrono::high_resolution_clock::now() - portWorkStart)
+                        .count();
+        if (ms > 40.0 && sSlowLogged < 120) {
+            sSlowLogged++;
+            fprintf(stderr, "[slow] %.1fms mode=%d ctx=%d submitted=%d script=%d frame=%d\n", ms, get_game_mode(),
+                    gGameStatusPtr ? gGameStatusPtr->context : -1, sFrameSubmitted ? 1 : 0,
+                    gGameStatusPtr ? gGameStatusPtr->mainScriptID : -1, sPushFrameCount);
+        }
+    }
 
 #if 0 // Disabled: screenshot capture was causing ~100ms overhead per capture
 #ifdef __APPLE__

@@ -1767,6 +1767,11 @@ void Interpreter::GfxSpModifyVertex(uint16_t vtx_idx, uint8_t where, uint32_t va
     }
 }
 
+// PORT: fade diagnostics, armed by GfxDpFillRectangle when it widens a full-screen fill.
+bool gPortPostFillWatch = false;
+int gPortPostFillLogged = 0;
+int gPortPostFillFrames = 0;
+
 void Interpreter::GfxSpTri1(uint8_t vtx1_idx, uint8_t vtx2_idx, uint8_t vtx3_idx, bool is_rect) {
     // Bounds check vertex indices against loaded_vertices array (MAX_VERTICES + 4 entries)
     constexpr uint8_t maxIdx = MAX_VERTICES + 3;
@@ -1777,6 +1782,14 @@ void Interpreter::GfxSpTri1(uint8_t vtx1_idx, uint8_t vtx2_idx, uint8_t vtx3_idx
     struct LoadedVertex* v2 = &mRsp->loaded_vertices[vtx2_idx];
     struct LoadedVertex* v3 = &mRsp->loaded_vertices[vtx3_idx];
     struct LoadedVertex* v_arr[3] = { v1, v2, v3 };
+
+    // PORT: name the first few draws issued after a full-screen fade fill.
+    if (gPortPostFillWatch && gPortPostFillLogged < 10) {
+        gPortPostFillLogged++;
+        fprintf(stderr, "[afterfill] %s x=(%.3f %.3f %.3f) y=(%.3f %.3f %.3f) tex=%p cc=0x%llX\n",
+                is_rect ? "rect" : "tri", v1->x, v2->x, v3->x, v1->y, v2->y, v3->y,
+                (void*)mRdp->texture_to_load.addr, (unsigned long long)mRdp->combine_mode);
+    }
 
     // if (rand()%2) return;
 
@@ -3021,16 +3034,45 @@ void Interpreter::GfxDpFillRectangle(int32_t ulx, int32_t uly, int32_t lrx, int3
     }
     uint32_t mode = (mRdp->other_mode_h & (3U << G_MDSFT_CYCLETYPE));
 
+    const int32_t inUlx = ulx, inUly = uly, inLrx = lrx, inLry = lry;
+    bool widened = false;
+
     // OTRTODO: This is a bit of a hack for widescreen screen fades, but it'll work for now...
     if (ulx == 0 && uly == 0 && lrx == (319 * 4) && lry == (239 * 4)) {
         ulx = -1024;
         uly = -1024;
         lrx = 2048;
         lry = 2048;
+        widened = true;
     } else if (!mFbActive && ulx <= (16 * 4) && lrx >= (304 * 4)) {
         // PORT: widen a full-frame fill (fades, borders) to cover the wider window too.
         ulx = -1024;
         lrx = 2048;
+        widened = true;
+    }
+
+    // PORT: report each distinct fill once, so a fade that misses the edges can be traced.
+    {
+        static uint32_t sSeen[48];
+        static int sSeenCount = 0;
+        uint32_t key = ((uint32_t)(inUlx & 0x1FFF)) | ((uint32_t)(inLrx & 0x1FFF) << 13) |
+                       ((uint32_t)(widened ? 1 : 0) << 26) | ((uint32_t)(mFbActive ? 1 : 0) << 27);
+        bool found = false;
+        for (int i = 0; i < sSeenCount; i++) {
+            if (sSeen[i] == key) {
+                found = true;
+                break;
+            }
+        }
+        if (!found && sSeenCount < (int)(sizeof(sSeen) / sizeof(sSeen[0]))) {
+            sSeen[sSeenCount++] = key;
+            fprintf(stderr,
+                    "[fillrect] in=(%d,%d)-(%d,%d) widened=%d fb=%d cyc=%d cur=%dx%d nat=%dx%d "
+                    "scis=(%.0f,%.0f %.0fx%.0f)\n",
+                    inUlx, inUly, inLrx, inLry, widened ? 1 : 0, mFbActive ? 1 : 0, (int)(mode >> G_MDSFT_CYCLETYPE),
+                    mCurDimensions.width, mCurDimensions.height, mNativeDimensions.width, mNativeDimensions.height,
+                    mRdp->scissor.x, mRdp->scissor.y, mRdp->scissor.width, mRdp->scissor.height);
+        }
     }
 
     if (mode == G_CYC_COPY || mode == G_CYC_FILL) {
@@ -3052,6 +3094,10 @@ void Interpreter::GfxDpFillRectangle(int32_t ulx, int32_t uly, int32_t lrx, int3
 
     GfxDrawRectangle(ulx, uly, lrx, lry);
     mRdp->combine_mode = saved_combine_mode;
+
+    if (widened && gPortPostFillFrames < 6) {
+        gPortPostFillWatch = true;
+    }
 }
 
 void Interpreter::GfxDpSetZImage(void* zBufAddr) {
@@ -4959,11 +5005,17 @@ static void gfx_step() {
         }
     } else
 #else
-    // PORT: still need the wide texture rect for the widescreen background, despite skipping OTR.
+    // PORT: still need the wide rects for the widescreen background and fades, despite skipping OTR.
     if (opcode == OTR_G_TEXRECT_WIDE) {
         handled = true;
         sUnhandledCount = 0;
         if (gfx_tex_rect_wide_handler_custom(&cmd)) {
+            return;
+        }
+    } else if (opcode == OTR_G_FILLWIDERECT) {
+        handled = true;
+        sUnhandledCount = 0;
+        if (gfx_fill_wide_rect_handler_custom(&cmd)) {
             return;
         }
     } else
@@ -5211,6 +5263,12 @@ void Interpreter::RunGuiOnly() {
 
 void Interpreter::Run(Gfx* commands, const std::unordered_map<Mtx*, MtxF>& mtx_replacements) {
     SpReset();
+
+    if (gPortPostFillWatch) {
+        gPortPostFillFrames++;
+    }
+    gPortPostFillWatch = false;
+    gPortPostFillLogged = 0;
 
     mGetPixelDepthPending.clear();
     mGetPixelDepthCached.clear();

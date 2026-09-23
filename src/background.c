@@ -7,9 +7,17 @@
 extern void gfx_texture_cache_clear(void);
 extern float GameEngine_GetAspectRatio(void);
 
+extern s32 gPortMapLogGen;
+// Set for the strips I want dumped, so one map load reports the rects it actually issues.
+static s32 sBgTraceStrip = -1;
+static s32 sBgTraceGen = -1;
+
 static void port_draw_bg_ext_rect(s32 x0, s32 x1, s32 y0, s32 y1, s32 texel) {
     if (x1 < x0) {
         return;
+    }
+    if (sBgTraceStrip >= 0) {
+        fprintf(stderr, "[bgrect] strip=%d ext  x=%d..%d y=%d..%d s=%d\n", sBgTraceStrip, x0, x1, y0, y1, texel);
     }
     gSPWideTextureRectangle(gMainGfxPos++, x0 * 4, y0 * 4, x1 * 4, y1 * 4, G_TX_RENDERTILE, texel * 32, 0, 4096, 1024);
 }
@@ -371,6 +379,48 @@ void appendGfx_background_texture(void) {
         gDPLoadTLUT_pal256(gMainGfxPos++, gBackgroundPalette);
     }
 
+#ifdef PORT
+    // Count how many times the background is appended in a single game frame. More than one pass
+    // would explain a strip of the screen carrying a different palette or different rows.
+    {
+        static s32 sGen = -1;
+        static s32 sCallsThisGen = 0;
+        static s32 sLastMatrixListPos = -1;
+
+        if (sGen != gPortMapLogGen) {
+            sGen = gPortMapLogGen;
+            sCallsThisGen = 0;
+        }
+        if (sCallsThisGen < 4) {
+            sCallsThisGen++;
+            fprintf(stderr, "[bgpass] call %d after map load: cam=%d tint=%d flags=0x%X xOff=%d\n",
+                    sCallsThisGen, gCurrentCameraID, *gBackgroundTintModePtr,
+                    gGameStatusPtr->backgroundFlags, bgXOffset);
+        }
+        (void)sLastMatrixListPos;
+    }
+
+    // The background draws as horizontal strips plus extra columns at each edge for widescreen.
+    // Wrong bands or a vertical seam come from these numbers, so report them when they change.
+    {
+        static s32 sLastKey = -1;
+        s32 key = (gGameStatusPtr->backgroundMaxX << 20) ^ (gGameStatusPtr->backgroundMaxY << 8) ^
+                  (wideExtra << 4) ^ (gBackroundWaveEnabled ? 1 : 0) ^
+                  ((gGameStatusPtr->backgroundFlags & BACKGROUND_FLAG_FOG) ? 2 : 0);
+
+        if (key != sLastKey) {
+            sLastKey = key;
+            fprintf(stderr, "[bgdraw] %dx%d min=(%d,%d) xOff=%d wideExtra=%d wave=%d fog=%d "
+                            "lineH=%d texYOff=%d\n",
+                    gGameStatusPtr->backgroundMaxX, gGameStatusPtr->backgroundMaxY, bgMinX, bgMinY,
+                    bgXOffset, wideExtra, gBackroundWaveEnabled,
+                    (gGameStatusPtr->backgroundFlags & BACKGROUND_FLAG_FOG) != 0,
+                    gGameStatusPtr->backgroundMaxX ? 2048 / gGameStatusPtr->backgroundMaxX : -1,
+                    gBackroundTextureYOffset);
+        }
+    }
+#endif
+
     if (!gBackroundWaveEnabled) {
         lineHeight = 2048 / gGameStatusPtr->backgroundMaxX;
         numLines = gGameStatusPtr->backgroundMaxY / lineHeight;
@@ -385,6 +435,15 @@ void appendGfx_background_texture(void) {
                                0, 0, 295, 5, 0,
                                G_TX_WRAP, G_TX_WRAP, G_TX_NOMASK, G_TX_NOMASK, G_TX_NOLOD, G_TX_NOLOD);
 
+#ifdef PORT
+            sBgTraceStrip = (sBgTraceGen != gPortMapLogGen && i < 3) ? i : -1;
+            if (sBgTraceStrip >= 0) {
+                fprintf(stderr, "[bgrect] strip=%d row=%d main x=%d..%d y=%d..%d s=%d | x=%d..%d s=0\n",
+                        i, texOffsetY, bgMinX, bgXOffset + bgMinX - 1, lineHeight * i + bgMinY,
+                        lineHeight * i + lineHeight - 1 + bgMinY, bgMaxX - bgXOffset,
+                        bgXOffset + bgMinX, bgMaxX + bgMinX - 1);
+            }
+#endif
             gSPTextureRectangle(gMainGfxPos++, bgMinX * 4, (lineHeight * i + bgMinY) * 4,
                                                  (bgXOffset + bgMinX - 1) * 4, (lineHeight * i + lineHeight - 1 + bgMinY) * 4,
                                                  G_TX_RENDERTILE, (bgMaxX - bgXOffset) * 32, 0, 4096, 1024);
@@ -396,6 +455,10 @@ void appendGfx_background_texture(void) {
                 port_draw_bg_extension(bgMinX, bgMaxX, bgXOffset, wideExtra, lineHeight * i + bgMinY,
                                        lineHeight * i + lineHeight - 1 + bgMinY);
             }
+            if (i == 2) {
+                sBgTraceGen = gPortMapLogGen;
+            }
+            sBgTraceStrip = -1;
 #endif
         }
         if (extraHeight != 0) {

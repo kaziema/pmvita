@@ -2278,7 +2278,13 @@ void hud_element_free_transform(s32 id) {
         imgfx_release_instance(hudTransform->imgfxIdx);
     }
 
+#ifdef PORT
+    // All three creators use general_heap_malloc, but heap_free picks its arena from the game
+    // context, so freeing from battle or pause hands a general pointer to the battle heap.
+    general_heap_free(hudElement->hudTransform);
+#else
     heap_free(hudElement->hudTransform);
+#endif
     hudElement->hudTransform = nullptr;
     hudElement->flags &= ~(HUD_ELEMENT_FLAG_40000000 | HUD_ELEMENT_FLAG_NO_FOLD | HUD_ELEMENT_FLAG_TRANSFORM);
 }

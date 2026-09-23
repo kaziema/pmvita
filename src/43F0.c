@@ -162,6 +162,26 @@ void* _heap_malloc(HeapNode* head, u32 size) {
 extern HeapNode heap_generalHead;
 extern HeapNode heap_spriteHead;
 extern HeapNode heap_collisionHead;
+extern HeapNode heap_battleHead;
+
+// heap_malloc/heap_free pick an arena from gGameStatusPtr->context, so anything allocated in
+// one context and freed in another lands in the wrong arena. _heap_free then writes a node
+// header at addr-16 and links that foreign memory into this arena, quietly wrecking both.
+static u32 port_heap_arena_size(HeapNode* head) {
+    if (head == &heap_generalHead) {
+        return GENERAL_HEAP_SIZE;
+    }
+    if (head == &heap_spriteHead) {
+        return SPRITE_HEAP_SIZE;
+    }
+    if (head == &heap_collisionHead) {
+        return COLLISION_HEAP_SIZE;
+    }
+    if (head == &heap_battleHead) {
+        return BATTLE_HEAP_SIZE;
+    }
+    return 0;
+}
 
 // Walks one heap's node list and logs the first inconsistency, once. Diagnostic only.
 static s32 port_heap_validate(HeapNode* head, u32 arenaSize, const char* name, s32* reported) {
@@ -304,6 +324,29 @@ u32 _heap_free(HeapNode* heapNodeList, void* addrToFree) {
     if (addrToFree == nullptr) {
         return true;
     }
+
+#ifdef PORT
+    {
+        u32 arenaSize = port_heap_arena_size(heapNodeList);
+
+        if (arenaSize != 0) {
+            u8* lo = (u8*)heapNodeList;
+            u8* addr = (u8*)addrToFree;
+
+            if (addr < lo + sizeof(HeapNode) || addr >= lo + arenaSize) {
+                static s32 sReported = 0;
+
+                if (sReported < 8) {
+                    sReported++;
+                    fprintf(stderr, "[heapfree] %p is outside arena %p..%p, ignoring (caller=%p)\n",
+                            addrToFree, (void*)lo, (void*)(lo + arenaSize), __builtin_return_address(0));
+                    fflush(stderr);
+                }
+                return true;
+            }
+        }
+    }
+#endif
 
     // if we are not allocated then ignore this request
     nodeToFreeHeader = (HeapNode*)((u8*)addrToFree - sizeof(HeapNode));

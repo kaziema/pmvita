@@ -283,6 +283,13 @@ void appendGfx_screen_transition_stencil(s32 arg0, s32 arg1, f32 progress, s32 p
         y2 = gCameras[camID].viewportStartY + gCameras[camID].viewportH;
         t5 = x1;
         t6 = y1;
+#ifdef PORT
+        // The world is drawn wider than the camera's viewport, so a viewport-sized wipe leaves
+        // the extra columns at each edge showing the scene. Cover the full width, but keep the
+        // texture origin on the viewport so the stencil pattern stays put.
+        x1 = 0;
+        x2 = SCREEN_WIDTH;
+#endif
     } else {
         x1 = 0;
         y1 = 0;

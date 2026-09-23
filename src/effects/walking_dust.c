@@ -63,6 +63,23 @@ void walking_dust_init(EffectInstance* effect) {
 void walking_dust_update(EffectInstance* effect) {
     WalkingDustFXData* data = effect->data.walkingDust;
 
+#ifdef PORT
+    // This is where the crash lands. unk_6C indexes a 2 entry table, so anything else means the
+    // data block is not what this effect allocated. Report it and drop the effect instead.
+    if (data == NULL || (u32)data->unk_6C > 1 || (u32)data->unk_70 > 64) {
+        static s32 sReported = 0;
+        if (sReported < 8) {
+            sReported++;
+            fprintf(stderr, "[dust] bad data=%p unk_6C=%d unk_70=%d numParts=%d effect=%p\n",
+                    (void*)data, data ? data->unk_6C : -1, data ? data->unk_70 : -1,
+                    effect->numParts, (void*)effect);
+            fflush(stderr);
+        }
+        remove_effect(effect);
+        return;
+    }
+#endif
+
     data->unk_74 = D_E000E684[data->unk_6C][data->unk_70++];
 
     if (data->unk_74 < 0) {

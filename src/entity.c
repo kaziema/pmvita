@@ -1697,6 +1697,18 @@ s32 create_shadow_type(s32 type, f32 x, f32 y, f32 z) {
 
     shadowIndex = create_shadow_from_data(bp, x, y, z);
 
+#ifdef PORT
+    // Shadows draw as flat quads, so one placed at the wrong height reads as a line on screen.
+    {
+        static s32 sReported = 0;
+
+        if (sReported < 24) {
+            sReported++;
+            fprintf(stderr, "[shadow] type=%d idx=%d pos=(%.1f,%.1f,%.1f)\n", type, shadowIndex, x, y, z);
+        }
+    }
+#endif
+
     if (isFixedSize) {
         get_shadow_by_index(shadowIndex)->flags |= ENTITY_FLAG_FIXED_SHADOW_SIZE;
     }

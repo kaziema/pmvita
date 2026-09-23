@@ -974,7 +974,7 @@ void appendGfx_message(MessagePrintState* printer, s16 posX, s16 posY, u16 addit
                         // dimensions and clip bounds it is drawn with.
                         {
                             static s32 sLogged = 0;
-                            if (sLogged < 4) {
+                            if (sLogged < 24) {
                                 sLogged++;
                                 fprintf(stderr, "[msgimg] %dx%d fmt=%d depth=%d pos=(%d,%d) clip=(%d,%d)-(%d,%d) alpha=%d raster=%p pal=%p\n",
                                         msgImageData->width, msgImageData->height, msgImageData->format,
@@ -985,9 +985,27 @@ void appendGfx_message(MessagePrintState* printer, s16 posX, s16 posY, u16 addit
                             }
                         }
 #endif
+#ifdef PORT
+                        {
+                            extern s32 gPortImgTrace;
+                            static s32 sTraced = 0;
+
+                            if (sTraced < 6) {
+                                sTraced++;
+                                gPortImgTrace = 1;
+                            }
+                        }
+#endif
                         draw_ci_image_with_clipping(msgImageData->raster, msgImageData->width, msgImageData->height, msgImageData->format, msgImageData->bitDepth,
                                                     msgImageData->palette, imgDrawPosX, imgDrawPosY, (s32) msg_drawState->clipX[0], (s32) msg_drawState->clipY[0],
                                                     msg_drawState->clipX[1] - msg_drawState->clipX[0], msg_drawState->clipY[1] - msg_drawState->clipY[0], phi_t5);
+#ifdef PORT
+                        {
+                            extern s32 gPortImgTrace;
+
+                            gPortImgTrace = 0;
+                        }
+#endif
                         msg_drawState->printModeFlags |= (MSG_PRINT_FLAG_2 | MSG_PRINT_FLAG_10);
                         msg_drawState->drawBufferPos += 2;
                         break;

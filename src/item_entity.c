@@ -398,6 +398,19 @@ void item_entity_load(ItemEntity* item) {
 }
 
 s32 make_item_entity(s32 itemID, f32 x, f32 y, f32 z, s32 itemSpawnMode, s32 pickupDelay, s32 angle, s32 pickupFlagIndex) {
+#ifdef PORT
+    // The hammer pickup is an item entity, and the stray line shows up with it.
+    {
+        static s32 sReported = 0;
+
+        if (sReported < 24) {
+            sReported++;
+            fprintf(stderr, "[item] id=%d pos=(%.1f,%.1f,%.1f) mode=%d angle=%d\n",
+                    itemID, x, y, z, itemSpawnMode, angle);
+        }
+    }
+#endif
+
     s32 i;
     s32 id;
     ItemEntity* item;

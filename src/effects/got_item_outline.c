@@ -3,6 +3,21 @@
 
 extern IMG_BIN D_09000000_345B40[][0x1000];
 extern IMG_BIN D_09004000_349B40[][0x1000];
+#ifdef PORT
+// Each band is its own array here, so indexing the first one walks off its end instead of
+// reaching the next three. Name them explicitly.
+extern IMG_BIN D_09001000_346B40[];
+extern IMG_BIN D_09002000_347B40[];
+extern IMG_BIN D_09003000_348B40[];
+extern IMG_BIN D_09005000_34AB40[];
+extern IMG_BIN D_09006000_34BB40[];
+extern IMG_BIN D_09007000_34CB40[];
+
+static IMG_BIN* const sOutlineBands[2][4] = {
+    { (IMG_BIN*)D_09000000_345B40, D_09001000_346B40, D_09002000_347B40, D_09003000_348B40 },
+    { (IMG_BIN*)D_09004000_349B40, D_09005000_34AB40, D_09006000_34BB40, D_09007000_34CB40 },
+};
+#endif
 extern Gfx D_09008100_34DC40[];
 extern Gfx D_09008170_34DCB0[];
 extern Gfx D_09008190_34DCD0[];
@@ -145,11 +160,15 @@ void got_item_outline_appendGfx(void* effect) {
         for (i = 0; i < 4; i++) {
             IMG_PTR img;
 
+#ifdef PORT
+            img = sOutlineBands[type == 0 ? 0 : 1][i];
+#else
             if (type == 0) {
                 img = D_09000000_345B40[i];
             } else {
                 img = D_09004000_349B40[i];
             }
+#endif
 
             gDPSetTextureImage(gMainGfxPos++, G_IM_FMT_IA, G_IM_SIZ_8b, 128, img);
             gDPSetTile(gMainGfxPos++, G_IM_FMT_IA, G_IM_SIZ_8b, 16, 0, G_TX_LOADTILE, 0,

@@ -228,6 +228,23 @@ void render_effects_UI(void) {
     }
 }
 
+#ifdef PORT
+// Cleared on every map load so each map reports the effects it actually runs.
+u8 gPortEffectSeen[256];
+
+// Bumped on every map load. Diagnostics elsewhere compare against it to log once per map.
+s32 gPortMapLogGen = 0;
+
+void port_reset_effect_log(void) {
+    s32 i;
+
+    for (i = 0; i < (s32)sizeof(gPortEffectSeen); i++) {
+        gPortEffectSeen[i] = 0;
+    }
+    gPortMapLogGen++;
+}
+#endif
+
 EffectInstance* create_effect_instance(EffectBlueprint* effectBp) {
     EffectInstance* newEffectInst;
     EffectSharedData* sharedData;
@@ -289,6 +306,21 @@ EffectInstance* create_effect_instance(EffectBlueprint* effectBp) {
     if (gGameStatusPtr->context != CONTEXT_WORLD) {
         newEffectInst->flags |= FX_INSTANCE_FLAG_BATTLE;
     }
+
+#ifdef PORT
+    // Report each effect id the first time it is created, with its slot and instance pointer,
+    // so a crashing data pointer can be traced back to the effect that owns it.
+    {
+        s32 id = newEffectInst->effectID;
+
+        if (id >= 0 && id < (s32)sizeof(gPortEffectSeen) && !gPortEffectSeen[id]) {
+            gPortEffectSeen[id] = 1;
+            fprintf(stderr, "[fx+] id=%d slot=%d inst=%p parts=%d ctx=%d\n",
+                    id, i, (void*)newEffectInst, newEffectInst->numParts, gGameStatusPtr->context);
+        }
+    }
+#endif
+
     return newEffectInst;
 }
 
@@ -302,6 +334,20 @@ void remove_effect(EffectInstance* effectInstance) {
     }
 
     ASSERT(i < ARRAY_COUNT(gEffectInstances));
+
+#ifdef PORT
+    // Pairs with [fx+]. If a pointer shows up here twice, or a freed one is used later, this is
+    // where that shows.
+    {
+        static s32 sReported = 0;
+
+        if (sReported < 40) {
+            sReported++;
+            fprintf(stderr, "[fx-] id=%d slot=%d inst=%p data=%p\n", effectInstance->effectID, i,
+                    (void*)effectInstance, (void*)effectInstance->data.any);
+        }
+    }
+#endif
 
     if (effectInstance->data.any == nullptr) {
         general_heap_free(effectInstance);
