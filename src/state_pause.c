@@ -86,6 +86,12 @@ BSS s16 StepPauseAlpha; // effectively unused, always zero
 BSS s32 SavedReverbMode;
 
 void state_init_pause(void) {
+#ifdef PORT
+    {
+        extern void pause_reset_overlay_state(void);
+        pause_reset_overlay_state();
+    }
+#endif
     StepPauseState = 0;
     StepPauseAlpha = 0;
     disable_player_input();

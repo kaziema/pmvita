@@ -85,6 +85,19 @@ EffectInstance* fire_breath_main(
     data->envG = 48;
     data->envB = 0;
 
+#ifdef PORT
+    // The graphics load fine but nothing draws, so report what each spawn actually gets.
+    {
+        static s32 sLogged = 0;
+        if (sLogged < 6) {
+            sLogged++;
+            fprintf(stderr, "[fire] spawn type=%d pos=(%.1f,%.1f,%.1f) end=(%.1f,%.1f,%.1f) scale=%.3f dur=%d alpha=%d\n",
+                    type, data->pos.x, data->pos.y, data->pos.z, data->endPos.x, data->endPos.y, data->endPos.z,
+                    data->scale, data->duration, data->alpha);
+        }
+    }
+#endif
+
     return effect;
 }
 
@@ -221,4 +234,18 @@ void fire_breath_appendGfx(void* effect) {
               G_MTX_PUSH | G_MTX_MUL | G_MTX_MODELVIEW);
     gSPDisplayList(gMainGfxPos++, dlist);
     gSPPopMatrix(gMainGfxPos++, G_MTX_MODELVIEW);
+
+#ifdef PORT
+    // If this never prints, the effect is not reaching the renderer at all; if it does print,
+    // these are the values it drew with.
+    {
+        static s32 sLogged = 0;
+        if (sLogged < 6) {
+            sLogged++;
+            fprintf(stderr, "[fire] draw type=%d pos=(%.1f,%.1f,%.1f) scale=%.4f alpha=%d frame=%d dl=%p\n",
+                    type, data->pos.x, data->pos.y, data->pos.z, data->scale, data->alpha, imgFrame,
+                    (void*)dlist);
+        }
+    }
+#endif
 }

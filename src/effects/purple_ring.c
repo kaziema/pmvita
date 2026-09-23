@@ -133,6 +133,18 @@ EffectInstance* purple_ring_main(
     data->unk_1C[3][3] = 1.0f;
     data->unk_64 = arg7 * 0.1;
 
+#ifdef PORT
+    // Renders far too large on hardware; report the inputs that set its size.
+    {
+        static s32 sLogged = 0;
+        if (sLogged < 6) {
+            sLogged++;
+            fprintf(stderr, "[purple] spawn pos=(%.1f,%.1f,%.1f) dir=(%.3f,%.3f,%.3f) argScale=%.3f scale=%.4f\n",
+                    arg1, arg2, arg3, arg4, arg5, arg6, arg7, data->unk_64);
+        }
+    }
+#endif
+
     return effect;
 }
 
@@ -211,4 +223,17 @@ void purple_ring_appendGfx(void* effect) {
     gSPDisplayList(gMainGfxPos++, D_090004E8_3531C8);
     gSPPopMatrix(gMainGfxPos++, G_MTX_MODELVIEW);
     gDPPipeSync(gMainGfxPos++);
+
+#ifdef PORT
+    // Separates "spawned huge" from "grew every frame because it never expires": unk_64 is the
+    // scale actually drawn, unk_6C the remaining lifetime.
+    {
+        static s32 sLogged = 0;
+        if (sLogged < 10) {
+            sLogged++;
+            fprintf(stderr, "[purple] draw scale=%.4f life=%d pos=(%.1f,%.1f,%.1f) alpha=%d\n",
+                    data->unk_64, data->unk_6C, data->unk_04, data->unk_08, data->unk_0C, data->unk_68);
+        }
+    }
+#endif
 }

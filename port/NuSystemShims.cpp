@@ -494,13 +494,11 @@ void nuPiReadRom(u32 rom_addr, void* buf_ptr, u32 size) {
  * On PC: All overlays are statically linked, so this is a no-op.
  */
 void nuPiReadRomOverlay(NUPiOverlaySegment* segment) {
-    // No-op: all overlay code is statically linked on PC
-    // The overlay's BSS section needs to be zeroed though
-    if (segment->bssStart != NULL && segment->bssEnd != NULL) {
-        u32 bssSize = (u32)(segment->bssEnd - segment->bssStart);
-        if (bssSize > 0) {
-            memset(segment->bssStart, 0, bssSize);
-        }
+    // Overlay code is statically linked here, so there is nothing to DMA. The BSS range comes
+    // from linker stub symbols my linker orders backwards, making bssEnd - bssStart negative;
+    // as a size_t that asked memset to wipe ~4GB from the middle of BSS on every pause.
+    if (segment->bssStart != NULL && segment->bssEnd != NULL && segment->bssEnd > segment->bssStart) {
+        memset(segment->bssStart, 0, (size_t)(segment->bssEnd - segment->bssStart));
     }
 }
 

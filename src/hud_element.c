@@ -2015,6 +2015,20 @@ HudElement* get_hud_element(s32 id) {
 }
 
 void hud_element_free(s32 id) {
+#ifdef PORT
+    // Freeing an already-empty slot is what crashes on unpause. Name the id and the caller
+    // instead of faulting, so one log identifies which array is holding a stale id.
+    if ((*gHudElements)[id & ~HUD_ELEMENT_BATTLE_ID_MASK] == nullptr) {
+        static s32 sLogged = 0;
+        if (sLogged < 12) {
+            sLogged++;
+            fprintf(stderr, "[hudfree] id=%d (slot %d) already empty, caller=%p\n", id,
+                    id & ~HUD_ELEMENT_BATTLE_ID_MASK, __builtin_return_address(0));
+            fflush(stderr);
+        }
+        return;
+    }
+#endif
     if ((*gHudElements)[id & ~HUD_ELEMENT_BATTLE_ID_MASK]->flags & HUD_ELEMENT_FLAG_TRANSFORM) {
         hud_element_free_transform(id & ~HUD_ELEMENT_BATTLE_ID_MASK);
     }

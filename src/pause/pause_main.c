@@ -623,6 +623,24 @@ void pause_tutorial_draw_contents(MenuPanel* menu, s32 baseX, s32 baseY, s32 wid
     draw_msg(pause_get_menu_msg(gPauseTutorialCmdMessages[gPauseTutorialState]), baseX + width / 2 + 10, baseY + 44, 255, MSG_PAL_STANDARD, 0);
 }
 
+#ifdef PORT
+// N64 re-DMAs the pause overlay before every pause_init, which resets these panel flags and
+// id arrays from the ROM image. Nothing reloads them here, so they have to be reset by hand.
+static s32 sPauseInitRan = FALSE;
+
+void pause_reset_overlay_state(void) {
+    s32 i;
+
+    sPauseInitRan = FALSE;
+    for (i = 0; i < ARRAY_COUNT(gPauseCommonHIDs); i++) {
+        gPauseCommonHIDs[i] = 0;
+    }
+    for (i = 0; i < ARRAY_COUNT(gPausePanels); i++) {
+        gPausePanels[i]->initialized = FALSE;
+    }
+}
+#endif
+
 void pause_init(void) {
     s32 posX;
     s32 x;
@@ -683,6 +701,9 @@ void pause_init(void) {
 
     update_window_hierarchy(WIN_PAUSE_CURSOR, 64);
 
+#ifdef PORT
+    sPauseInitRan = TRUE;
+#endif
 }
 
 void pause_tutorial_input(s32 *pressed, s32 *held) {
@@ -824,6 +845,14 @@ void pause_handle_input(s32 pressed, s32 held) {
 void pause_cleanup(void) {
     s32 i;
     MenuPanel** menuPanels;
+
+#ifdef PORT
+    // Unpausing before pause_init has run would otherwise free the previous session's ids.
+    if (!sPauseInitRan) {
+        return;
+    }
+    sPauseInitRan = false;
+#endif
 
     for (i = 0; i < ARRAY_COUNT(gPauseCommonHIDs); i++) {
         hud_element_free(gPauseCommonHIDs[i]);

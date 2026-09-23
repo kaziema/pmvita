@@ -969,6 +969,22 @@ void appendGfx_message(MessagePrintState* printer, s16 posX, s16 posY, u16 addit
                         imgDrawPosY = (s16)((msg_drawState->nextPos[1] + (msg_drawState->textStartPos[1] + (printer->windowBasePos.y + posY))) -
                                    additionalOffsetY);
 
+#ifdef PORT
+                        // The hammer/yellow-block icon draws with lines through it; these are the
+                        // dimensions and clip bounds it is drawn with.
+                        {
+                            static s32 sLogged = 0;
+                            if (sLogged < 4) {
+                                sLogged++;
+                                fprintf(stderr, "[msgimg] %dx%d fmt=%d depth=%d pos=(%d,%d) clip=(%d,%d)-(%d,%d) alpha=%d raster=%p pal=%p\n",
+                                        msgImageData->width, msgImageData->height, msgImageData->format,
+                                        msgImageData->bitDepth, imgDrawPosX, imgDrawPosY,
+                                        (s32) msg_drawState->clipX[0], (s32) msg_drawState->clipY[0],
+                                        (s32) msg_drawState->clipX[1], (s32) msg_drawState->clipY[1], phi_t5,
+                                        (void*)msgImageData->raster, (void*)msgImageData->palette);
+                            }
+                        }
+#endif
                         draw_ci_image_with_clipping(msgImageData->raster, msgImageData->width, msgImageData->height, msgImageData->format, msgImageData->bitDepth,
                                                     msgImageData->palette, imgDrawPosX, imgDrawPosY, (s32) msg_drawState->clipX[0], (s32) msg_drawState->clipY[0],
                                                     msg_drawState->clipX[1] - msg_drawState->clipX[0], msg_drawState->clipY[1] - msg_drawState->clipY[0], phi_t5);

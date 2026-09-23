@@ -189,6 +189,39 @@ static void swizzle_display_list(const u8* blob, u32 blobSize,
                 break;
         }
     }
+
+    // Some lists have no G_ENDDL and simply run into the next chunk, which works on N64
+    // because segment 9 is one contiguous block. Here every chunk is its own array, so the
+    // fall-through has to be restored as an explicit branch into the following list.
+    {
+        s32 hasEnd = 0;
+        for (s32 i = 0; i < numCmds; i++) {
+            if ((read_be_u32(src + i * N64_GFX_CMD_SIZE) >> 24) == F3DEX2_G_ENDDL) {
+                hasEnd = 1;
+                break;
+            }
+        }
+
+        if (!hasEnd) {
+            const EffectGfxSymbol* next = NULL;
+            for (s32 i = 0; i < numSymbols; i++) {
+                if (allSymbols[i].seg9Offset == sym->seg9Offset + sym->sizeBytes) {
+                    next = &allSymbols[i];
+                    break;
+                }
+            }
+
+            if (next != NULL && next->type == EFX_SYM_GFX) {
+                dest[numCmds].words.w0 = (uintptr_t)((F3DEX2_G_DL << 24) | (1 << 16)); // branch, no push
+                dest[numCmds].words.w1 = (uintptr_t)next->pcArray;
+                fprintf(stderr, "[effect_gfx_swizzle] seg9 0x%X falls through -> branch to 0x%X\n",
+                        sym->seg9Offset, next->seg9Offset);
+            } else {
+                dest[numCmds].words.w0 = (uintptr_t)(F3DEX2_G_ENDDL << 24);
+                dest[numCmds].words.w1 = 0;
+            }
+        }
+    }
 }
 
 /**
