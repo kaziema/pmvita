@@ -750,6 +750,10 @@ void spr_init_component_anim_state(SpriteComponent* comp, SpriteAnimComponent* a
 }
 
 void spr_init_anim_state(SpriteComponent** compList, SpriteAnimComponent** animList) {
+#ifdef PORT
+    SpriteAnimComponent** animStart = animList;
+    SpriteComponent** compStart = compList;
+#endif
     while (*compList != PTR_LIST_END) {
         SpriteComponent* component = *compList++;
         spr_init_component_anim_state(component, *animList);
@@ -757,6 +761,24 @@ void spr_init_anim_state(SpriteComponent** compList, SpriteAnimComponent** animL
             animList++;
         }
     }
+#ifdef PORT
+    // An animation with more parts than the component list it runs on loses the extras without a
+    // word. The snot bubble is an extra part of Mario's sleep animation, so report any shortfall.
+    if (*animList != PTR_LIST_END) {
+        static s32 sLogged = 0;
+        s32 animCount = 0;
+        s32 compCount = (s32)(compList - compStart);
+
+        while (animStart[animCount] != PTR_LIST_END) {
+            animCount++;
+        }
+        if (sLogged < 12) {
+            sLogged++;
+            fprintf(stderr, "[sprcomp] animation has %d parts but only %d components to draw them\n", animCount,
+                    compCount);
+        }
+    }
+#endif
 }
 
 void spr_set_anim_timescale(f32 timescale) {
@@ -800,9 +822,6 @@ void spr_init_sprites(s32 playerSpriteSet) {
             spr_load_player_sprite(i);
         }
     }
-#ifdef PORT
-    fprintf(stderr, "[spr_init_sprites] player sprite loading done, maxComponents=%d\n", MaxPlayerSpriteComponents);
-#endif
 
     for (i = 0; i < ARRAY_COUNT(CurPlayerAnimInfo); i++) {
         CurPlayerAnimInfo[i].componentList = nullptr;
@@ -823,9 +842,6 @@ void spr_init_sprites(s32 playerSpriteSet) {
     }
 
     spr_init_quad_cache();
-#ifdef PORT
-    fprintf(stderr, "[spr_init_sprites] returning\n");
-#endif
 }
 
 void spr_render_init(void) {

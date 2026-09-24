@@ -10,11 +10,26 @@ API_CALLABLE(N(LoadPartyImage)) {
     u32 decompressedSize;
     void* compressed = load_asset_by_name("party_opuku", &decompressedSize);
 
+#ifdef PORT
+    // Same bug as LoadPartyImage: the blob is palette then raster, and decoding into the first of
+    // several separate statics assumes a layout the compiler does not give. Decode into a struct.
+    static struct {
+        PAL_BIN palette[256];
+        IMG_BIN raster[0x3D90];
+    } sPortPartyImage;
+
+    decode_yay0(compressed, &sPortPartyImage);
+    general_heap_free(compressed);
+
+    N(image).raster = sPortPartyImage.raster;
+    N(image).palette = sPortPartyImage.palette;
+#else
     decode_yay0(compressed, &N(palette));
     general_heap_free(compressed);
 
     N(image).raster = N(raster);
     N(image).palette = N(palette);
+#endif
     N(image).width = 150;
     N(image).height = 105;
     N(image).format = G_IM_FMT_CI;

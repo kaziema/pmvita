@@ -72,6 +72,12 @@ std::stack<std::string> currentDir;
 // PORT: keeps vertex X proportional under a wider-than-4:3 viewport. Reset every frame.
 static float sVertexXScale = 1.0f;
 
+extern "C" {
+extern double gPortFrameMsShader;
+extern int gPortFrameShaders;
+uint64_t port_time_us(void);
+}
+
 namespace Fast {
 
 static UcodeHandlers ucode_handler_index = ucode_f3dex2;
@@ -163,9 +169,20 @@ void Interpreter::Flush() {
 ShaderProgram* Interpreter::LookupOrCreateShaderProgram(uint64_t id0, uint64_t id1) {
     ShaderProgram* prg = mRapi->LookupShader(id0, id1);
     if (prg == nullptr) {
+        // PORT: a shader the cache has never seen is compiled on the spot, mid-frame.
+        const uint64_t t0 = port_time_us();
         mRapi->UnloadShader(mRenderingState.mShaderProgram);
         prg = mRapi->CreateAndLoadNewShader(id0, id1);
         mRenderingState.mShaderProgram = prg;
+        const double ms = (port_time_us() - t0) / 1000.0;
+        gPortFrameMsShader += ms;
+        gPortFrameShaders++;
+        static int sShaderLogged = 0;
+        if (ms > 20.0 && sShaderLogged < 30) {
+            sShaderLogged++;
+            fprintf(stderr, "[shader] compiled in %.1fms id=0x%llX/0x%llX\n", ms, (unsigned long long)id0,
+                    (unsigned long long)id1);
+        }
     }
     return prg;
 }
@@ -458,6 +475,10 @@ void Interpreter::TextureCacheClear() {
     mTextureCache.lru.clear();
 }
 
+extern int gPortFrameTris;
+extern int gPortFrameTexUploads;
+void port_gl_read_pixel(int x, int y, uint8_t* rgba);
+
 bool Interpreter::TextureCacheLookup(int i, const TextureCacheKey& key) {
     TextureCacheMap::iterator it = mTextureCache.map.find(key);
     TextureCacheNode** n = &mRenderingState.mTextures[i];
@@ -477,6 +498,9 @@ bool Interpreter::TextureCacheLookup(int i, const TextureCacheKey& key) {
         mTextureCache.map.erase(it);
         mTextureCache.lru.pop_front();
     }
+
+    // PORT: a miss here means the texture is decoded and uploaded again this frame.
+    gPortFrameTexUploads++;
 
     uint32_t texture_id;
     if (!mTextureCache.free_texture_ids.empty()) {
@@ -1767,11 +1791,14 @@ void Interpreter::GfxSpModifyVertex(uint16_t vtx_idx, uint8_t where, uint32_t va
     }
 }
 
-// PORT: fade diagnostics, armed by GfxDpFillRectangle when it widens a full-screen fill.
-bool gPortPostFillWatch = false;
-int gPortPostFillLogged = 0;
-int gPortPostFillFrames = 0;
-int gPortPostFillTotal = 0;
+
+// PORT: per-frame work counters, read by the frame timer so a lag report can name the cost.
+int gPortFrameTris = 0;
+int gPortFrameTexUploads = 0;
+int gPortFrameNearClip = 0;
+// Highest alpha of any full-screen fill this frame; a fade at 255 should leave the frame black.
+int gPortFadeAlpha = -1;
+
 
 void Interpreter::GfxSpTri1(uint8_t vtx1_idx, uint8_t vtx2_idx, uint8_t vtx3_idx, bool is_rect) {
     // Bounds check vertex indices against loaded_vertices array (MAX_VERTICES + 4 entries)
@@ -1784,18 +1811,42 @@ void Interpreter::GfxSpTri1(uint8_t vtx1_idx, uint8_t vtx2_idx, uint8_t vtx3_idx
     struct LoadedVertex* v3 = &mRsp->loaded_vertices[vtx3_idx];
     struct LoadedVertex* v_arr[3] = { v1, v2, v3 };
 
-    // PORT: after a widened fade fill, name anything that still paints the widescreen columns.
-    // Those are the only draws that can put scene back at the edges of a finished fade.
-    if (gPortPostFillWatch && gPortPostFillLogged < 6 && gPortPostFillTotal < 80) {
-        float minX = v1->x < v2->x ? (v1->x < v3->x ? v1->x : v3->x) : (v2->x < v3->x ? v2->x : v3->x);
-        float maxX = v1->x > v2->x ? (v1->x > v3->x ? v1->x : v3->x) : (v2->x > v3->x ? v2->x : v3->x);
+    gPortFrameTris++;
 
-        if (minX < -0.9f || maxX > 0.9f) {
-            gPortPostFillLogged++;
-            gPortPostFillTotal++;
-            fprintf(stderr, "[afterfill] f%d %s x=(%.3f..%.3f) y=(%.3f %.3f %.3f) tex=%p cc=0x%llX\n",
-                    gPortPostFillFrames, is_rect ? "rect" : "tri", minX, maxX, v1->y, v2->y, v3->y,
-                    (void*)mRdp->texture_to_load.addr, (unsigned long long)mRdp->combine_mode);
+    // PORT: a triangle that is wide but has no height draws as a stray hairline. Name the texture
+    // behind it so the draw that produced it can be found.
+    {
+        static uint32_t sSeenHairline[16];
+        static int sHairlineCount = 0;
+
+        // Positions here are clip space, so divide by w to compare in screen space. A vertex on or
+        // behind the eye plane has no screen position, so skip those.
+        if (v1->w > 0.0f && v2->w > 0.0f && v3->w > 0.0f) {
+        float n1x = v1->x / v1->w, n2x = v2->x / v2->w, n3x = v3->x / v3->w;
+        float n1y = v1->y / v1->w, n2y = v2->y / v2->w, n3y = v3->y / v3->w;
+        float minY = n1y < n2y ? (n1y < n3y ? n1y : n3y) : (n2y < n3y ? n2y : n3y);
+        float maxY = n1y > n2y ? (n1y > n3y ? n1y : n3y) : (n2y > n3y ? n2y : n3y);
+        float minX = n1x < n2x ? (n1x < n3x ? n1x : n3x) : (n2x < n3x ? n2x : n3x);
+        float maxX = n1x > n2x ? (n1x > n3x ? n1x : n3x) : (n2x > n3x ? n2x : n3x);
+
+        // Top and bottom screen edges are where zero-height UI slides in and out; ignore those.
+        if ((maxX - minX) > 0.25f && (maxY - minY) < 0.01f && minX > -2.0f && maxX < 2.0f && minY > -0.98f &&
+            maxY < 0.98f) {
+            uint32_t key = (uint32_t)(uintptr_t)mRdp->texture_to_load.addr;
+            bool found = false;
+            for (int i = 0; i < sHairlineCount; i++) {
+                if (sSeenHairline[i] == key) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found && sHairlineCount < 16) {
+                sSeenHairline[sHairlineCount++] = key;
+                fprintf(stderr, "[hairline] %s x=(%.3f..%.3f) y=%.4f tex=%p cc=0x%llX\n",
+                        is_rect ? "rect" : "tri", minX, maxX, minY, (void*)mRdp->texture_to_load.addr,
+                        (unsigned long long)mRdp->combine_mode);
+            }
+        }
         }
     }
 
@@ -1813,21 +1864,47 @@ void Interpreter::GfxSpTri1(uint8_t vtx1_idx, uint8_t vtx2_idx, uint8_t vtx3_idx
     if (v1->w <= 0.0f && v2->w <= 0.0f && v3->w <= 0.0f) {
         return;
     }
+    // PORT: this clamp is not near-plane clipping. A large polygon that straddles the camera
+    // plane keeps its far vertices and gets a bogus one at w=0.001, which drags an edge across
+    // the screen. Count how often that happens and show the first few.
+    {
+        int behind = 0;
+        int vi;
+
+        for (vi = 0; vi < 3; vi++) {
+            if (v_arr[vi]->w <= 0.0f) {
+                behind++;
+            }
+        }
+        if (behind > 0) {
+            static int sNearLogged = 0;
+
+            gPortFrameNearClip++;
+            if (sNearLogged < 20) {
+                sNearLogged++;
+                fprintf(stderr, "[nearclip] behind=%d w=(%.3f %.3f %.3f) x=(%.1f %.1f %.1f) y=(%.1f %.1f %.1f) tex=%p\n",
+                        behind, v1->w, v2->w, v3->w, v1->x, v2->x, v3->x, v1->y, v2->y, v3->y,
+                        (void*)mRdp->texture_to_load.addr);
+            }
+        }
+    }
+
+    // PORT: the positions below go to the GPU as clip-space x,y,z,w and the GPU clips triangles
+    // against the near plane itself. Clamping a behind-camera w to +0.001 threw that vertex off
+    // toward infinity and dragged a wedge across large floors and water planes. Pass w through.
+    // Only drop a triangle whose data is not a usable number at all.
     for (int vi = 0; vi < 3; vi++) {
-        if (v_arr[vi]->w <= 0.0f) {
-            // Vertex is behind the camera. Clamp w to small positive value.
-            // Also set z = w so that depth maps to the far plane (z/w = 1.0)
-            // instead of an extreme negative value that clamps to depth 0 (nearest),
-            // which would incorrectly occlude all geometry behind it.
-            v_arr[vi]->z = 0.001f;
-            v_arr[vi]->w = 0.001f;
+        const float cx = v_arr[vi]->x, cy = v_arr[vi]->y, cz = v_arr[vi]->z, cw = v_arr[vi]->w;
+        if (!(cx == cx) || !(cy == cy) || !(cz == cz) || !(cw == cw) || cx > 1.0e8f || cx < -1.0e8f ||
+            cy > 1.0e8f || cy < -1.0e8f || cw > 1.0e8f || cw < -1.0e8f) {
+            return;
         }
     }
     const uint32_t cull_both = get_attr(CULL_BOTH);
     const uint32_t cull_front = get_attr(CULL_FRONT);
     const uint32_t cull_back = get_attr(CULL_BACK);
 
-    if ((mRsp->geometry_mode & cull_both) != 0) {
+    if ((mRsp->geometry_mode & cull_both) != 0 && v1->w != 0.0f && v2->w != 0.0f && v3->w != 0.0f) {
         float dx1 = v1->x / (v1->w) - v2->x / (v2->w);
         float dy1 = v1->y / (v1->w) - v2->y / (v2->w);
         float dx2 = v3->x / (v3->w) - v2->x / (v2->w);
@@ -3107,8 +3184,8 @@ void Interpreter::GfxDpFillRectangle(int32_t ulx, int32_t uly, int32_t lrx, int3
     GfxDrawRectangle(ulx, uly, lrx, lry);
     mRdp->combine_mode = saved_combine_mode;
 
-    if (widened && gPortPostFillFrames < 60) {
-        gPortPostFillWatch = true;
+    if (widened && mRdp->prim_color.a > gPortFadeAlpha) {
+        gPortFadeAlpha = mRdp->prim_color.a;
     }
 }
 
@@ -5276,11 +5353,9 @@ void Interpreter::RunGuiOnly() {
 void Interpreter::Run(Gfx* commands, const std::unordered_map<Mtx*, MtxF>& mtx_replacements) {
     SpReset();
 
-    if (gPortPostFillWatch) {
-        gPortPostFillFrames++;
-    }
-    gPortPostFillWatch = false;
-    gPortPostFillLogged = 0;
+    gPortFrameTris = 0;
+    gPortFrameTexUploads = 0;
+    gPortFrameNearClip = 0;
 
     mGetPixelDepthPending.clear();
     mGetPixelDepthCached.clear();
@@ -5319,6 +5394,29 @@ void Interpreter::Run(Gfx* commands, const std::unordered_map<Mtx*, MtxF>& mtx_r
     }
 
     Flush();
+
+    // PORT: every check says the fade fill covers the whole window, yet the edges still show the
+    // scene. Read the finished frame back: black here means the frame is right and presenting it
+    // is not; colour here means something really drew over the fill.
+    if (gPortFadeAlpha >= 250 && !mFbActive) {
+        static int sFadeSamples = 0;
+
+        if (sFadeSamples < 12) {
+            uint8_t left[4] = { 0 }, mid[4] = { 0 }, right[4] = { 0 };
+            int w = (int)mGfxCurrentWindowDimensions.width;
+            int h = (int)mGfxCurrentWindowDimensions.height;
+
+            sFadeSamples++;
+            port_gl_read_pixel(12, h / 2, left);
+            port_gl_read_pixel(w / 2, h / 2, mid);
+            port_gl_read_pixel(w - 12, h / 2, right);
+            fprintf(stderr, "[fadepx] alpha=%d left=(%d,%d,%d) mid=(%d,%d,%d) right=(%d,%d,%d) win=%dx%d\n",
+                    gPortFadeAlpha, left[0], left[1], left[2], mid[0], mid[1], mid[2], right[0], right[1],
+                    right[2], w, h);
+        }
+    }
+    gPortFadeAlpha = -1;
+
     mGfxFrameBuffer = 0;
     currentDir = std::stack<std::string>();
 

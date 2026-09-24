@@ -15,6 +15,15 @@ typedef struct PartyImage {
     char padding[10];
 } PartyImage;
 
+// PORT: the blob is palette then raster, decoded in one go. Decoding into the first of three
+// separate statics assumes the compiler lays them out back to back, which it does not here: the
+// raster landed 0x220 past the palette instead of 0x200, shearing every partner picture. The
+// struct form below guarantees the layout, so the port uses it.
+#if defined(PORT) && !defined(SHIFT)
+#define SHIFT
+#define PORT_PARTY_IMAGE_SET_SHIFT
+#endif
+
 API_CALLABLE(N(LoadPartyImage)) {
     #ifdef SHIFT
     static PartyImage img;
@@ -51,5 +60,10 @@ API_CALLABLE(N(LoadPartyImage)) {
     set_message_images(&image);
     return ApiStatus_DONE2;
 }
+
+#ifdef PORT_PARTY_IMAGE_SET_SHIFT
+#undef SHIFT
+#undef PORT_PARTY_IMAGE_SET_SHIFT
+#endif
 
 #undef PARTY_IMAGE

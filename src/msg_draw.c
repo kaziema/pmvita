@@ -985,27 +985,9 @@ void appendGfx_message(MessagePrintState* printer, s16 posX, s16 posY, u16 addit
                             }
                         }
 #endif
-#ifdef PORT
-                        {
-                            extern s32 gPortImgTrace;
-                            static s32 sTraced = 0;
-
-                            if (sTraced < 6) {
-                                sTraced++;
-                                gPortImgTrace = 1;
-                            }
-                        }
-#endif
                         draw_ci_image_with_clipping(msgImageData->raster, msgImageData->width, msgImageData->height, msgImageData->format, msgImageData->bitDepth,
                                                     msgImageData->palette, imgDrawPosX, imgDrawPosY, (s32) msg_drawState->clipX[0], (s32) msg_drawState->clipY[0],
                                                     msg_drawState->clipX[1] - msg_drawState->clipX[0], msg_drawState->clipY[1] - msg_drawState->clipY[0], phi_t5);
-#ifdef PORT
-                        {
-                            extern s32 gPortImgTrace;
-
-                            gPortImgTrace = 0;
-                        }
-#endif
                         msg_drawState->printModeFlags |= (MSG_PRINT_FLAG_2 | MSG_PRINT_FLAG_10);
                         msg_drawState->drawBufferPos += 2;
                         break;
@@ -1692,6 +1674,44 @@ void appendGfx_message(MessagePrintState* printer, s16 posX, s16 posY, u16 addit
                          msgVarImage->width + 15, msgVarImage->height + 14, varImgFinalAlpha, 0, 0.0f, 0.0f, 0.0f, 0.0f,
                          0.0f, nullptr, 0, nullptr, SCREEN_WIDTH, SCREEN_HEIGHT, nullptr);
             }
+#ifdef PORT
+            // Partner tutorial pictures drew sheared. The raster should sit exactly 0x200 past the
+            // palette now; this reports the layout and a checksum of the first few it draws.
+            {
+                static s32 sTraced = 0;
+
+                if (sTraced < 4) {
+                    sTraced++;
+                    u8* varRaster = (u8*)msgVarImage->raster;
+                    u16* varPal = (u16*)msgVarImage->palette;
+                    s32 varBytes = msgVarImage->width * msgVarImage->height;
+                    u32 varSum = 0;
+                    s32 varZeros = 0;
+                    s32 varK;
+
+                    if (msgVarImage->bitDepth == G_IM_SIZ_4b) {
+                        varBytes /= 2;
+                    }
+                    for (varK = 0; varK < varBytes; varK++) {
+                        varSum = varSum * 31 + varRaster[varK];
+                        if (varRaster[varK] == 0) {
+                            varZeros++;
+                        }
+                    }
+                    fprintf(stderr, "[varimg] %dx%d fmt=%d depth=%d pos=(%d,%d) alpha=%d raster=%p pal=%p\n",
+                            msgVarImage->width, msgVarImage->height, msgVarImage->format,
+                            msgVarImage->bitDepth, printer->varImageScreenPos.x, printer->varImageScreenPos.y,
+                            varImgFinalAlpha, (void*)msgVarImage->raster, (void*)msgVarImage->palette);
+                    // A garbage raster and a good one that decodes wrong look the same on screen.
+                    // The checksum, the zero count and the first palette entries tell them apart.
+                    fprintf(stderr, "[varimg] bytes=%d sum=0x%08X zeros=%d px=%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X "
+                                    "pal=%04X,%04X,%04X,%04X\n",
+                            varBytes, varSum, varZeros, varRaster[0], varRaster[1], varRaster[2], varRaster[3],
+                            varRaster[varBytes / 2], varRaster[varBytes / 2 + 1], varRaster[varBytes - 2],
+                            varRaster[varBytes - 1], varPal[0], varPal[1], varPal[2], varPal[3]);
+                }
+            }
+#endif
             draw_ci_image_with_clipping(msgVarImage->raster, msgVarImage->width, msgVarImage->height,
                                         msgVarImage->format, msgVarImage->bitDepth, msgVarImage->palette,
                                         printer->varImageScreenPos.x, printer->varImageScreenPos.y, 0, 0,

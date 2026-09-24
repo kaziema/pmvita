@@ -1,9 +1,34 @@
 #include "common.h"
 #include "effects_internal.h"
+#ifdef PORT
+#include "gcc/string.h"
+#endif
 
 extern s32 D_09000000_3C1BA0;
 extern s32 D_09002020_3C3BC0;
 extern Vtx D_09004040_3C5BE0[][22];
+#ifdef PORT
+// The 55x22 vertex block arrives as three separate arrays and the rows straddle them, so the
+// original [idx] index walks off the end of the first one. Stitch them back into one block.
+extern Vtx D_090043B0_3C5F50[];
+extern Vtx D_09004720_3C62C0[];
+
+#define FRIGHT_JAR_ROWS 55
+#define FRIGHT_JAR_ROW_VERTS 22
+
+static Vtx sFrightJarVtx[FRIGHT_JAR_ROWS * FRIGHT_JAR_ROW_VERTS];
+static Vtx* sFrightJarVtxSrc = NULL;
+
+static Vtx* port_fright_jar_row(s32 row) {
+    if (sFrightJarVtxSrc != (Vtx*)D_09004040_3C5BE0) {
+        sFrightJarVtxSrc = (Vtx*)D_09004040_3C5BE0;
+        memcpy(&sFrightJarVtx[0], D_09004040_3C5BE0, 55 * sizeof(Vtx));
+        memcpy(&sFrightJarVtx[55], D_090043B0_3C5F50, 55 * sizeof(Vtx));
+        memcpy(&sFrightJarVtx[110], D_09004720_3C62C0, 1100 * sizeof(Vtx));
+    }
+    return &sFrightJarVtx[row * FRIGHT_JAR_ROW_VERTS];
+}
+#endif
 extern Gfx D_09008BE0_3CA780[];
 
 u8 D_E00C2990[] = {
@@ -140,7 +165,11 @@ void fright_jar_appendGfx(void* effect) {
         idx = 0;
     }
 
+#ifdef PORT
+    gSPVertex(gMainGfxPos++, port_fright_jar_row(idx), 22, 0);
+#else
     gSPVertex(gMainGfxPos++, &D_09004040_3C5BE0[idx], 22, 0);
+#endif
 
     alpha = D_E00C2990[unk_14 % 16];
     gDPSetEnvColor(gMainGfxPos++, 0, 0, 0, alpha);

@@ -2,6 +2,30 @@
 #include "effects_internal.h"
 
 extern char D_09000000_3803A0[][0x200];
+#ifdef PORT
+// The four frames are four separate arrays here, so indexing the first one runs past its end.
+extern char D_09000200_3805A0[];
+extern char D_09000400_3807A0[];
+extern char D_09000600_3809A0[];
+
+static char* const sFireFlowerFrames[4] = {
+    (char*)D_09000000_3803A0, D_09000200_3805A0, D_09000400_3807A0, D_09000600_3809A0,
+};
+
+// unk_34 reaches 3, so the second of the two loads below asks for frame -1. Vanilla read the
+// 0x200 bytes in front of the blob and drew junk; a table lookup would take a wild pointer.
+static char* port_fire_flower_frame(s32 i) {
+    if (i < 0) {
+        i = 0;
+    } else if (i > 3) {
+        i = 3;
+    }
+    return sFireFlowerFrames[i];
+}
+#define FIRE_FLOWER_FRAME(i) port_fire_flower_frame(i)
+#else
+#define FIRE_FLOWER_FRAME(i) D_09000000_3803A0[i]
+#endif
 extern Gfx D_09000D40_3810E0[];
 extern Gfx D_09000DE0_381180[];
 extern Gfx D_09000EB8_381258[];
@@ -249,12 +273,12 @@ void fire_flower_appendGfx(void* effect) {
 
     gSPDisplayList(gMainGfxPos++, D_09000D40_3810E0);
     gDPLoadTextureTile_4b(
-        gMainGfxPos++, D_09000000_3803A0[3 - unk_34],
+        gMainGfxPos++, FIRE_FLOWER_FRAME(3 - unk_34),
         G_IM_FMT_CI, 32, 0, 0, 0, 31, 31, 0,
         G_TX_MIRROR | G_TX_WRAP, G_TX_MIRROR | G_TX_WRAP,
         5, 5, G_TX_NOLOD, G_TX_NOLOD);
     gDPLoadMultiTile_4b(
-        gMainGfxPos++, D_09000000_3803A0[2 - unk_34],
+        gMainGfxPos++, FIRE_FLOWER_FRAME(2 - unk_34),
         0x0080, 1, G_IM_FMT_CI, 32, 0, 0, 0, 31, 31, 0,
         G_TX_MIRROR | G_TX_WRAP, G_TX_MIRROR | G_TX_WRAP,
         5, 5, G_TX_NOLOD, G_TX_NOLOD);

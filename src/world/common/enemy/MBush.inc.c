@@ -55,6 +55,13 @@ EvtScript N(EVS_NpcAI_MBush) = {
     Call(SetTimeFreezeMode, TIME_FREEZE_NONE)
     Call(DisablePlayerInput, false)
     Call(StartBattle)
+#ifdef PORT
+    // Vanilla runs off the end of this script into EVS_NpcInteract_MBush below it. Nothing keeps
+    // the two adjacent here, so spell out what it fell into.
+    Call(SetSelfVar, 0, 1)
+    Return
+    End
+#endif
 }; // fallthrough :(
 
 EvtScript N(EVS_NpcInteract_MBush) = {

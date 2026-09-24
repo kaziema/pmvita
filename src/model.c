@@ -4570,6 +4570,14 @@ s32 is_model_center_visible(u16 modelID, s32 depthQueryID, f32* screenX, f32* sc
     f32 outZ;
     f32 outW;
 
+#ifdef PORT
+    // The occlusion test copies one depth texel into DepthCopyBuffer by redirecting the RDP's
+    // colour image, which Fast3D ignores. The buffer stays zero, which decodes as "something is
+    // in front", so every query answered hidden and bulb glows never showed. Skip the depth test
+    // and answer on whether the point is in front of the camera, as the no-query path does.
+    depthQueryID = -1;
+#endif
+
     s32 depthExponent;
     s32 depthMantissa;
     u32 shiftedMantissa, mantissaBias;
@@ -4679,6 +4687,14 @@ bool is_point_visible(f32 x, f32 y, f32 z, s32 depthQueryID, f32* screenX, f32* 
     f32 outY;
     f32 outZ;
     f32 outW;
+
+#ifdef PORT
+    // The occlusion test copies one depth texel into DepthCopyBuffer by redirecting the RDP's
+    // colour image, which Fast3D ignores. The buffer stays zero, which decodes as "something is
+    // in front", so every query answered hidden and bulb glows never showed. Skip the depth test
+    // and answer on whether the point is in front of the camera, as the no-query path does.
+    depthQueryID = -1;
+#endif
 
     s32 depthExponent;
     s32 depthMantissa;

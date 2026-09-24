@@ -145,15 +145,6 @@ void state_init_change_map(void) {
 }
 
 void state_step_change_map(void) {
-#ifdef PORT
-    static int change_map_step_count = 0;
-    change_map_step_count++;
-    if (change_map_step_count <= 5 || gMapTransitionState >= CHANGE_MAP_LOAD_MAP) {
-        fprintf(stderr, "[state_step_change_map] state=%d alpha=%d area=%d map=%d step=%d\n",
-                gMapTransitionState, gMapTransitionAlpha,
-                gGameStatusPtr->areaID, gGameStatusPtr->mapID, change_map_step_count);
-    }
-#endif
     switch (gMapTransitionState) {
         case CHANGE_MAP_INIT:
             update_npcs();

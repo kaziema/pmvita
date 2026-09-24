@@ -1,6 +1,9 @@
 #include "common.h"
 #include "sprite.h"
 #include "nu/nusys.h"
+#ifdef PORT
+#include <stdio.h>
+#endif
 
 SpriteShadingProfile* gSpriteShadingProfile;
 SpriteShadingProfile* gAuxSpriteShadingProfile;
@@ -385,6 +388,31 @@ void appendGfx_shading_palette(
     }
 
 #ifdef PORT
+    // Sprites stay fully lit in rooms that do have a shading profile. Report the inputs and the
+    // palette this produces, once per map, to say whether the profile, the maths or the draw is at fault.
+    {
+        extern s32 gPortMapLogGen;
+        static s32 sGen = -1;
+
+        if (sGen != gPortMapLogGen) {
+            s32 lit = 0;
+            s32 k;
+
+            sGen = gPortMapLogGen;
+            for (k = 0; k < (s32)ARRAY_COUNT(gSpriteShadingProfile->sources); k++) {
+                if (gSpriteShadingProfile->sources[k].flags & LIGHT_SOURCE_ENABLED) {
+                    lit++;
+                }
+            }
+            fprintf(stderr, "[shading] flags=0x%X lights=%d ambient=(%d,%d,%d) power=%d shadow=(%d,%d,%d) "
+                            "highlight=(%d,%d,%d) alpha=%d\n",
+                    gSpriteShadingProfile->flags, lit, gSpriteShadingProfile->ambientColor.r,
+                    gSpriteShadingProfile->ambientColor.g, gSpriteShadingProfile->ambientColor.b,
+                    gSpriteShadingProfile->ambientPower, shadowR, shadowG, shadowB, highlightR, highlightG,
+                    highlightB, alpha);
+        }
+    }
+
     // PORT: Fast3D can't render to arbitrary CPU memory (SpriteShadingPalette).
     // Compute the 16-entry RGBA16 shading palette directly in software.
     // Original code renders a gradient from highlight to shadow using the RDP.

@@ -6,6 +6,13 @@ EvtScript N(EVS_GotoMap_kmr_24_0) = {
     Call(FadeOutMusic, 0, 1500)
     Call(GotoMapSpecial, Ref("kmr_24"), kmr_24_ENTRY_0, TRANSITION_MARIO_WHITE)
     Wait(100)
+#ifdef PORT
+    // Vanilla leaves this script unterminated, so the label scan runs past the end of the array
+    // and off into whatever follows it.
+    Return
+    End
+#endif
+
 }; //@bug script not terminated
 
 EvtScript N(EVS_ExitWalk_jan_05_2) = {

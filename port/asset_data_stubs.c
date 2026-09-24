@@ -295,7 +295,8 @@ u8 kmr_02_heart_block_img[512] = {0};
 u8 kmr_02_heart_block_pal[32] = {0};
 u8 kmr_04_hammer_block_message_img[1152] = {0};
 u8 kmr_04_hammer_block_message_pal[32] = {0};
-u8 kmr_23_window_ul_img[64] = {0};
+/* draw_box reads all four 8x8 IA8 corners (ul, ur, ll, lr) back to back from this one pointer. */
+u8 kmr_23_window_ul_img[256] = {0};
 u8 level_up_BP_pal[32] = {0};
 u8 level_up_BP_png[384] = {0};
 u8 level_up_FP_pal[32] = {0};
@@ -406,7 +407,7 @@ u8 mgm_01_panel_times_5_img[512] = {0};
 u8 mgm_01_panel_times_5_pal[32] = {0};
 u8 mgm_02_panel_peach_img[512] = {0};
 u8 mgm_02_panel_peach_pal[32] = {0};
-u8 monstar_bubbles[1056] = {0};
+/* monstar_bubbles is defined in asset_rom_fill.c as a real Vtx array; 1056 bytes was too small for float vertices. */
 u8 n_aspMainDataStart[688] = {0};
 u8 n_aspMainTextStart[3168] = {0};
 u8 pause_arrows_png[512] = {0};

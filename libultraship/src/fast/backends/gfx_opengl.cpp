@@ -939,6 +939,11 @@ void GfxRenderingAPIOGL::CopyFramebuffer(int fb_dst_id, int fb_src_id, int srcX0
     glEnable(GL_SCISSOR_TEST);
 }
 
+// PORT: read back one pixel of the bound framebuffer, for checking what a frame really contains.
+void port_gl_read_pixel(int x, int y, uint8_t* rgba) {
+    glReadPixels(x, y, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
+}
+
 void GfxRenderingAPIOGL::ReadFramebufferToCPU(int fb_id, uint32_t width, uint32_t height, uint16_t* rgba16_buf) {
     if (fb_id >= (int)mFrameBuffers.size()) {
         return;

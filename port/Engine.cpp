@@ -399,7 +399,8 @@ void GameEngine::HandleAudioThread() {
 
         // Print diagnostics every 5 seconds (150 frames at 30fps)
         diag_frame++;
-        if (diag_frame % 150 == 0) {
+        // Every ~30s rather than every 5s; underruns accumulate over the window.
+        if (diag_frame % 900 == 0) {
             fprintf(stderr, "[AUDIO] f=%d buf=%d min=%d desired=%d underruns=%d\n",
                     diag_frame, samples_left, diag_min_buffered, desired, diag_underruns);
             diag_min_buffered = 999999;

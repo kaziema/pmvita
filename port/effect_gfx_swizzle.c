@@ -265,7 +265,7 @@ const EffectGfxSegmentInfo* effect_gfx_find_segment(u32 romStart) {
  * @param romEnd    ROM end address of the graphics segment
  * @return true if successful, false if segment info not found
  */
-int effect_gfx_load_and_swizzle(u32 romStart, u32 romEnd) {
+static int effect_gfx_load_and_swizzle_impl(u32 romStart, u32 romEnd) {
     const EffectGfxSegmentInfo* segInfo = effect_gfx_find_segment(romStart);
     if (segInfo == NULL) {
         fprintf(stderr, "[effect_gfx_swizzle] WARNING: no segment info for ROM 0x%X-0x%X\n",
@@ -370,3 +370,15 @@ int effect_gfx_load_and_swizzle(u32 romStart, u32 romEnd) {
 }
 
 #endif // PORT
+
+// Timed so a stall on an effect's first appearance says whether the conversion is what cost it.
+extern double gPortFrameMsFx;
+unsigned long long port_time_us(void);
+
+int effect_gfx_load_and_swizzle(u32 romStart, u32 romEnd) {
+    unsigned long long t0 = port_time_us();
+    int ret = effect_gfx_load_and_swizzle_impl(romStart, romEnd);
+
+    gPortFrameMsFx += (port_time_us() - t0) / 1000.0;
+    return ret;
+}

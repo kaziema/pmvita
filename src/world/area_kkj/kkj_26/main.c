@@ -8,6 +8,13 @@ EvtScript N(EVS_GotoMap_hos_00_1) = {
     Call(PlaySound, SOUND_SLIDE_WHISTLE_OUT)
     Call(GotoMapSpecial, Ref("hos_00"), hos_00_ENTRY_1, TRANSITION_END_PEACH_INTERLUDE)
     Wait(100)
+#ifdef PORT
+    // Vanilla leaves this script unterminated, so the label scan runs past the end of the array
+    // and off into whatever follows it.
+    Return
+    End
+#endif
+
 };
 
 EvtScript N(EVS_ExitDoors_kkj_14_1) = {

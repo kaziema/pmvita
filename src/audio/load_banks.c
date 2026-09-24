@@ -29,13 +29,10 @@ void au_load_BK_headers(AuGlobals* globals, ALHeap* heap) {
         }
 
 #ifdef PORT
-        fprintf(stderr, "[au_load_BK_headers] entry %d: fileIndex=%u bankIndex=%u bankSet=%u\n",
-                i, buffer[i].fileIndex, buffer[i].bankIndex, buffer[i].bankSet);
         if (au_fetch_SBN_file(buffer[i].fileIndex, AU_FMT_BK, &fileEntry) != AU_RESULT_OK) {
             fprintf(stderr, "[au_load_BK_headers] fetch FAILED for fileIndex=%u\n", buffer[i].fileIndex);
             continue;
         }
-        fprintf(stderr, "[au_load_BK_headers] fetch OK: offset=0x%X data=0x%X\n", fileEntry.offset, fileEntry.data);
 #else
         au_fetch_SBN_file(buffer[i].fileIndex, AU_FMT_BK, &fileEntry);
 #endif

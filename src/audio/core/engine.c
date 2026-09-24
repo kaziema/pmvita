@@ -1275,8 +1275,6 @@ BKFileBuffer* au_load_BK_to_bank(s32 bkFileOffset, BKFileBuffer* bkFile, s32 ban
     au_read_rom(bkFileOffset, header, sizeof(*header));
 #ifdef PORT
     au_bk_header_swap(header);
-    fprintf(stderr, "[au_load_BK_to_bank] offset=0x%X sig=0x%04X size=%d fmt=0x%04X\n",
-            bkFileOffset, header->signature, header->size, header->format);
 #endif
     readState = BK_READ_FETCH_HEADER;
     keepReading = true;

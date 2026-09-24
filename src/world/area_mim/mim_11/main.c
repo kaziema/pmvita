@@ -135,6 +135,13 @@ EvtScript N(EVS_ExitWarp_osr_03_4) = {
     Call(FadeOutMusic, 0, 1500)
     Call(GotoMapSpecial, Ref("osr_03"), osr_03_ENTRY_4, 0xB)
     Wait(100)
+#ifdef PORT
+    // Vanilla leaves this script unterminated, so the label scan runs past the end of the array
+    // and off into whatever follows it.
+    Return
+    End
+#endif
+
 };
 
 EvtScript N(EVS_ExitWalk_mim_07_3) = {

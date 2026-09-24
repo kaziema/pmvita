@@ -7,17 +7,9 @@
 extern void gfx_texture_cache_clear(void);
 extern float GameEngine_GetAspectRatio(void);
 
-extern s32 gPortMapLogGen;
-// Set for the strips I want dumped, so one map load reports the rects it actually issues.
-static s32 sBgTraceStrip = -1;
-static s32 sBgTraceGen = -1;
-
 static void port_draw_bg_ext_rect(s32 x0, s32 x1, s32 y0, s32 y1, s32 texel) {
     if (x1 < x0) {
         return;
-    }
-    if (sBgTraceStrip >= 0) {
-        fprintf(stderr, "[bgrect] strip=%d ext  x=%d..%d y=%d..%d s=%d\n", sBgTraceStrip, x0, x1, y0, y1, texel);
     }
     gSPWideTextureRectangle(gMainGfxPos++, x0 * 4, y0 * 4, x1 * 4, y1 * 4, G_TX_RENDERTILE, texel * 32, 0, 4096, 1024);
 }
@@ -77,8 +69,6 @@ void load_map_bg(char* optAssetName) {
 
         compressedData = load_asset_by_name(assetName, &assetSize);
 #ifdef PORT
-        fprintf(stderr, "[bg] load_map_bg: asset='%s' compressedData=%p decompSize=%u\n",
-                assetName, compressedData, assetSize);
         /*
          * On N64, gBackgroundImage is a 64KB buffer at 0x80200000 where the
          * decoded Yay0 data contains an N64 BackgroundHeader (16 bytes) followed
@@ -108,8 +98,6 @@ void load_map_bg(char* optAssetName) {
 
             u32 rasterOff  = rasterN64  - 0x80200000;
             u32 paletteOff = paletteN64 - 0x80200000;
-            fprintf(stderr, "[bg] rasterN64=0x%08X paletteN64=0x%08X rasterOff=0x%X paletteOff=0x%X\n",
-                    rasterN64, paletteN64, rasterOff, paletteOff);
 
             /* Populate the separate PC struct — pointers into the buffer */
             gBackgroundImage.raster  = buf + rasterOff;
@@ -118,10 +106,6 @@ void load_map_bg(char* optAssetName) {
             gBackgroundImage.startY  = read_be_u16(buf + 10);
             gBackgroundImage.width   = read_be_u16(buf + 12);
             gBackgroundImage.height  = read_be_u16(buf + 14);
-
-            fprintf(stderr, "[bg] dims: %dx%d start=(%d,%d)\n",
-                    gBackgroundImage.width, gBackgroundImage.height,
-                    gBackgroundImage.startX, gBackgroundImage.startY);
 
             /* Invalidate Fast3D texture cache — the background buffer is reused
              * at the same addresses, so stale cache entries from the previous
@@ -151,9 +135,7 @@ void set_background(BackgroundHeader* bg) {
     gGameStatusPtr->backgroundPalette = bg->palette;
     gGameStatusPtr->backgroundFlags |= BACKGROUND_FLAG_TEXTURE;
 #ifdef PORT
-    fprintf(stderr, "[bg] set_background: %dx%d start=(%d,%d) raster=%p palette=%p flags=0x%X\n",
-            bg->width, bg->height, bg->startX, bg->startY,
-            (void*)bg->raster, (void*)bg->palette, gGameStatusPtr->backgroundFlags);
+
 #endif
 }
 
@@ -172,26 +154,6 @@ u16 blend_background_channel(u16 arg0, s32 arg1, s32 alpha) {
 void appendGfx_background_texture(void) {
     Camera* cam = &gCameras[gCurrentCameraID];
     u16 flags = 0;
-#ifdef PORT
-    {
-        static u8* sLastRaster = NULL;
-        static u32 sLastFingerprint = 0;
-        u8* raster = gGameStatusPtr->backgroundRaster;
-        /* simple fingerprint: first 4 raster bytes XOR'd with bytes at offsets 100, 1000, 10000 */
-        u32 fp = 0;
-        if (raster) {
-            fp = (u32)raster[0] | ((u32)raster[1] << 8) | ((u32)raster[100] << 16) | ((u32)raster[1000] << 24);
-        }
-        if (raster != sLastRaster || fp != sLastFingerprint) {
-            fprintf(stderr, "[bg] appendGfx_background_texture: raster=%p pal=%p %dx%d flags=0x%X fp=0x%08X\n",
-                    (void*)raster, (void*)gGameStatusPtr->backgroundPalette,
-                    gGameStatusPtr->backgroundMaxX, gGameStatusPtr->backgroundMaxY,
-                    gGameStatusPtr->backgroundFlags, fp);
-            sLastRaster = raster;
-            sLastFingerprint = fp;
-        }
-    }
-#endif
     s32 fogR, fogG, fogB, fogA;
     u8 r1, g1, b1, a1;
     u8 r2, g2, b2;
@@ -379,48 +341,6 @@ void appendGfx_background_texture(void) {
         gDPLoadTLUT_pal256(gMainGfxPos++, gBackgroundPalette);
     }
 
-#ifdef PORT
-    // Count how many times the background is appended in a single game frame. More than one pass
-    // would explain a strip of the screen carrying a different palette or different rows.
-    {
-        static s32 sGen = -1;
-        static s32 sCallsThisGen = 0;
-        static s32 sLastMatrixListPos = -1;
-
-        if (sGen != gPortMapLogGen) {
-            sGen = gPortMapLogGen;
-            sCallsThisGen = 0;
-        }
-        if (sCallsThisGen < 4) {
-            sCallsThisGen++;
-            fprintf(stderr, "[bgpass] call %d after map load: cam=%d tint=%d flags=0x%X xOff=%d\n",
-                    sCallsThisGen, gCurrentCameraID, *gBackgroundTintModePtr,
-                    gGameStatusPtr->backgroundFlags, bgXOffset);
-        }
-        (void)sLastMatrixListPos;
-    }
-
-    // The background draws as horizontal strips plus extra columns at each edge for widescreen.
-    // Wrong bands or a vertical seam come from these numbers, so report them when they change.
-    {
-        static s32 sLastKey = -1;
-        s32 key = (gGameStatusPtr->backgroundMaxX << 20) ^ (gGameStatusPtr->backgroundMaxY << 8) ^
-                  (wideExtra << 4) ^ (gBackroundWaveEnabled ? 1 : 0) ^
-                  ((gGameStatusPtr->backgroundFlags & BACKGROUND_FLAG_FOG) ? 2 : 0);
-
-        if (key != sLastKey) {
-            sLastKey = key;
-            fprintf(stderr, "[bgdraw] %dx%d min=(%d,%d) xOff=%d wideExtra=%d wave=%d fog=%d "
-                            "lineH=%d texYOff=%d\n",
-                    gGameStatusPtr->backgroundMaxX, gGameStatusPtr->backgroundMaxY, bgMinX, bgMinY,
-                    bgXOffset, wideExtra, gBackroundWaveEnabled,
-                    (gGameStatusPtr->backgroundFlags & BACKGROUND_FLAG_FOG) != 0,
-                    gGameStatusPtr->backgroundMaxX ? 2048 / gGameStatusPtr->backgroundMaxX : -1,
-                    gBackroundTextureYOffset);
-        }
-    }
-#endif
-
     if (!gBackroundWaveEnabled) {
         lineHeight = 2048 / gGameStatusPtr->backgroundMaxX;
         numLines = gGameStatusPtr->backgroundMaxY / lineHeight;
@@ -435,15 +355,6 @@ void appendGfx_background_texture(void) {
                                0, 0, 295, 5, 0,
                                G_TX_WRAP, G_TX_WRAP, G_TX_NOMASK, G_TX_NOMASK, G_TX_NOLOD, G_TX_NOLOD);
 
-#ifdef PORT
-            sBgTraceStrip = (sBgTraceGen != gPortMapLogGen && i < 3) ? i : -1;
-            if (sBgTraceStrip >= 0) {
-                fprintf(stderr, "[bgrect] strip=%d row=%d main x=%d..%d y=%d..%d s=%d | x=%d..%d s=0\n",
-                        i, texOffsetY, bgMinX, bgXOffset + bgMinX - 1, lineHeight * i + bgMinY,
-                        lineHeight * i + lineHeight - 1 + bgMinY, bgMaxX - bgXOffset,
-                        bgXOffset + bgMinX, bgMaxX + bgMinX - 1);
-            }
-#endif
             gSPTextureRectangle(gMainGfxPos++, bgMinX * 4, (lineHeight * i + bgMinY) * 4,
                                                  (bgXOffset + bgMinX - 1) * 4, (lineHeight * i + lineHeight - 1 + bgMinY) * 4,
                                                  G_TX_RENDERTILE, (bgMaxX - bgXOffset) * 32, 0, 4096, 1024);
@@ -455,10 +366,6 @@ void appendGfx_background_texture(void) {
                 port_draw_bg_extension(bgMinX, bgMaxX, bgXOffset, wideExtra, lineHeight * i + bgMinY,
                                        lineHeight * i + lineHeight - 1 + bgMinY);
             }
-            if (i == 2) {
-                sBgTraceGen = gPortMapLogGen;
-            }
-            sBgTraceStrip = -1;
 #endif
         }
         if (extraHeight != 0) {

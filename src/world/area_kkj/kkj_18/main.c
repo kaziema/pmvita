@@ -28,6 +28,13 @@ EvtScript N(EVS_EndPeachChapter4) = {
     Call(PlaySound, SOUND_SLIDE_WHISTLE_OUT)
     Call(GotoMapSpecial, Ref("mac_04"), mac_04_ENTRY_5, TRANSITION_END_PEACH_INTERLUDE)
     Wait(100)
+#ifdef PORT
+    // Vanilla leaves this script unterminated, so the label scan runs past the end of the array
+    // and off into whatever follows it.
+    Return
+    End
+#endif
+
 };
 
 EvtScript N(EVS_UpdateClockPendulum) = {

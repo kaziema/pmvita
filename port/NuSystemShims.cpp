@@ -23,6 +23,16 @@
 #include <execinfo.h>
 #endif
 
+#include <thread>
+extern "C" {
+extern double gPortFrameMsRom;
+extern double gPortFrameMsRomWait;
+extern int gPortFrameRomReads;
+extern int gPortFrameRomBytes;
+uint64_t port_time_us(void);
+}
+extern std::thread::id gPortMainThreadId;
+
 // ROM file handle for nuPiReadRom
 static FILE* sRomFile = nullptr;
 static size_t sRomFileSize = 0;
@@ -452,9 +462,28 @@ static void nuPiReadRom_OpenRomFile(void) {
 void nuPiReadRom(u32 rom_addr, void* buf_ptr, u32 size) {
     nuPiReadRom_OpenRomFile();
 
+    // PORT: time game-thread reads, and separately how long they wait on the audio thread's lock.
+    const bool portTimed = std::this_thread::get_id() == gPortMainThreadId;
+    const uint64_t portT0 = portTimed ? port_time_us() : 0;
+    struct PortRomTimer {
+        bool on;
+        uint64_t t0;
+        u32 size;
+        ~PortRomTimer() {
+            if (on) {
+                gPortFrameMsRom += (port_time_us() - t0) / 1000.0;
+                gPortFrameRomReads++;
+                gPortFrameRomBytes += (int)size;
+            }
+        }
+    } portTimer = { portTimed, portT0, size };
+
     // Serialize all ROM file access — audio thread and main thread may call
     // nuPiReadRom concurrently, and fseek+fread is not atomic.
     std::lock_guard<std::mutex> lock(sRomFileMutex);
+    if (portTimed) {
+        gPortFrameMsRomWait += (port_time_us() - portT0) / 1000.0;
+    }
 
     if (sRomFile == nullptr) {
         memset(buf_ptr, 0, size);

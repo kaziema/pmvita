@@ -149,7 +149,13 @@ void func_80045B10(void) {
     for (i = 0; i < ARRAY_COUNT(D_800A0BC0); i++) {
         PopupMessage* popup = &D_800A0BC0[i];
         if (popup->message != nullptr) {
+#ifdef PORT
+            // popup->message always comes from general_heap_malloc, but heap_free picks its arena
+            // from the game context, so freeing from battle or pause hands it to the battle heap.
+            general_heap_free(popup->message);
+#else
             heap_free(popup->message);
+#endif
         }
         popup->active = false;
     }
@@ -204,7 +210,11 @@ PopupMessage* get_current_merlee_message(void) {
 
 void dispose_merlee_message(PopupMessage* popup) {
     if (popup->message != nullptr) {
+#ifdef PORT
+        general_heap_free(popup->message);
+#else
         heap_free(popup->message);
+#endif
         popup->message = nullptr;
     }
     popup->active = false;

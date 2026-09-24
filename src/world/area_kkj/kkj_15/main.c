@@ -28,6 +28,12 @@ EvtScript N(EVS_EndPeachChapter0) = {
     Call(PlaySound, SOUND_SLIDE_WHISTLE_OUT)
     Call(GotoMapSpecial, Ref("kmr_10"), kmr_10_ENTRY_0, TRANSITION_END_PEACH_INTERLUDE)
     Wait(100)
+#ifdef PORT
+    // Vanilla leaves this script unterminated, so the label scan runs past the end of the array
+    // and off into whatever follows it.
+    Return
+    End
+#endif
 }; //@bug script not properly terminated
 
 EvtScript N(EVS_EndPeachChapter1) = {
@@ -36,6 +42,12 @@ EvtScript N(EVS_EndPeachChapter1) = {
     Call(PlaySound, SOUND_SLIDE_WHISTLE_OUT)
     Call(GotoMapSpecial, Ref("trd_00"), trd_00_ENTRY_5, TRANSITION_END_PEACH_INTERLUDE)
     Wait(100)
+#ifdef PORT
+    // Vanilla leaves this script unterminated, so the label scan runs past the end of the array
+    // and off into whatever follows it.
+    Return
+    End
+#endif
 }; //@bug script not properly terminated
 
 EvtScript N(EVS_EndPeachChapter3) = {
@@ -44,6 +56,12 @@ EvtScript N(EVS_EndPeachChapter3) = {
     Call(PlaySound, SOUND_SLIDE_WHISTLE_OUT)
     Call(GotoMapSpecial, Ref("arn_07"), arn_07_ENTRY_3, TRANSITION_END_PEACH_INTERLUDE)
     Wait(100)
+#ifdef PORT
+    // Vanilla leaves this script unterminated, so the label scan runs past the end of the array
+    // and off into whatever follows it.
+    Return
+    End
+#endif
 }; //@bug script not properly terminated
 
 EvtScript N(EVS_ExitDoor_kkj_11_3) = {

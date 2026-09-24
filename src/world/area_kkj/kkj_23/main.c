@@ -9,6 +9,12 @@ EvtScript N(EVS_EndPeachChapter6) = {
     Call(PlaySound, SOUND_SLIDE_WHISTLE_OUT)
     Call(GotoMapSpecial, Ref("flo_00"), flo_00_ENTRY_A, TRANSITION_END_PEACH_INTERLUDE)
     Wait(100)
+#ifdef PORT
+    // Vanilla leaves this script unterminated, so the label scan runs past the end of the array
+    // and off into whatever follows it.
+    Return
+    End
+#endif
 }; //@bug script not properly terminated
 
 EvtScript N(EVS_ExitDoors_kkj_22_1) = {

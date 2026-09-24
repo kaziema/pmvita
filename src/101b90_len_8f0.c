@@ -395,29 +395,28 @@ void spr_init_player_raster_cache(s32 cacheSize, s32 maxRasterSize) {
     void* raster;
     s32 i;
 
-#ifdef PORT
-    fprintf(stderr, "[spr_init_player_raster_cache] SPRITE_ROM_START=0x%X, reading SpriteDataHeader (%u bytes)\n",
-        (unsigned)SPRITE_ROM_START, (unsigned)sizeof(SpriteDataHeader));
-#endif
     nuPiReadRom(SPRITE_ROM_START, &SpriteDataHeader, sizeof(SpriteDataHeader));
 #ifdef PORT
     bswap32_array(&SpriteDataHeader, sizeof(SpriteDataHeader) / 4);
-    fprintf(stderr, "[spr_init_player_raster_cache] SpriteDataHeader raw: [0]=0x%X [1]=0x%X [2]=0x%X\n",
-        (unsigned)SpriteDataHeader[0], (unsigned)SpriteDataHeader[1], (unsigned)SpriteDataHeader[2]);
 #endif
     PlayerRasterCacheSize = cacheSize;
     PlayerRasterMaxSize = maxRasterSize;
     SpriteDataHeader[0] += SPRITE_ROM_START;
     SpriteDataHeader[1] += SPRITE_ROM_START;
     SpriteDataHeader[2] += SPRITE_ROM_START;
-#ifdef PORT
-    fprintf(stderr, "[spr_init_player_raster_cache] SpriteDataHeader adjusted: [0]=0x%X [1]=0x%X [2]=0x%X\n",
-        (unsigned)SpriteDataHeader[0], (unsigned)SpriteDataHeader[1], (unsigned)SpriteDataHeader[2]);
-#endif
     raster = _heap_malloc(&heap_spriteHead, maxRasterSize * cacheSize);
 #ifdef PORT
-    fprintf(stderr, "[spr_init_player_raster_cache] _heap_malloc(%u * %u = %u) -> %p\n",
-        (unsigned)maxRasterSize, (unsigned)cacheSize, (unsigned)(maxRasterSize * cacheSize), raster);
+    // The cache size decides how many pieces of the player sprite can draw at once; say when it changes.
+    {
+        static s32 sLastSize = -1;
+        static s32 sLastMax = -1;
+
+        if (cacheSize != sLastSize || maxRasterSize != sLastMax) {
+            sLastSize = cacheSize;
+            sLastMax = maxRasterSize;
+            fprintf(stderr, "[sprcache] player raster cache: %d entries of %d bytes\n", cacheSize, maxRasterSize);
+        }
+    }
     if (!raster) {
         fprintf(stderr, "[spr_init_player_raster_cache] WARNING: allocation failed, heap_spriteHead exhausted\n");
     }
@@ -463,6 +462,18 @@ IMG_PTR spr_get_player_raster(s32 rasterIndex, s32 playerSpriteID) {
     }
 
     if (idx == -1) {
+#ifdef PORT
+        // A full cache means this piece of the player sprite silently does not draw.
+        {
+            static s32 sLogged = 0;
+
+            if (sLogged < 24) {
+                sLogged++;
+                fprintf(stderr, "[sprcache] full: raster=%d sprite=%d size=%d\n",
+                        rasterIndex, playerSpriteID, PlayerRasterCacheSize);
+            }
+        }
+#endif
         return nullptr;
     }
 

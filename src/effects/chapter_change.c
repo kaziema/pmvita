@@ -1,6 +1,9 @@
 #include "common.h"
 #include "effects_internal.h"
 #include "message_ids.h"
+#ifdef PORT
+#include <stdio.h>
+#endif
 
 typedef struct {
     /* 0x00 */ Gfx* displayList;
@@ -319,6 +322,22 @@ void chapter_change_appendGfx(void* effect) {
     func_E010E000(data, 1, ptr1);
 
     if (data->unk_54 >= 0) {
+#ifdef PORT
+        // The end of chapter summary text draws in the wrong place. These are the positions it
+        // and the two graphic strips are placed at.
+        {
+            static s32 sLogged = 0;
+
+            if (sLogged < 6) {
+                sLogged++;
+                fprintf(stderr, "[chapter] state=%u msg=%d msgPos=(%d,%d) chapterPos=(%.1f,%.1f) "
+                                "endOfPos=(%.1f,%.1f) life=%d\n",
+                        unk_00, (s32)data->unk_54, (s32)(data->unk_40 - data->unk_48), (s32)data->unk_44,
+                        data->chapterPos.x, data->chapterPos.y, data->endOfPos.x, data->endOfPos.y,
+                        data->lifetime);
+            }
+        }
+#endif
         draw_msg(data->unk_54, data->unk_40 - data->unk_48, data->unk_44, 255, 21, 0);
     }
 

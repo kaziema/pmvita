@@ -46,6 +46,7 @@ void gfx_task_background(void);
 
 // PORT: UI texture loader
 void port_load_ui_textures(void);
+void port_fill_asset_stubs(void);
 void port_load_map_textures(void);
 
 // Game mode
@@ -150,6 +151,33 @@ static int sPushFrameCount = 0;
 // Window aspect ratio for background scaling (see port_aspect.h)
 float gPortWindowAspectRatio = 4.0f / 3.0f;
 
+// Per-frame cost of the three things that can stall a frame: ROM reads, shader compiles and
+// effect graphics conversion. Filled by each of them, read and reset by push_frame.
+extern "C" {
+double gPortFrameMsRom = 0.0;
+double gPortFrameMsRomWait = 0.0;
+int gPortFrameRomReads = 0;
+int gPortFrameRomBytes = 0;
+double gPortFrameMsShader = 0.0;
+int gPortFrameShaders = 0;
+double gPortFrameMsFx = 0.0;
+
+uint64_t port_time_us(void) {
+    return (uint64_t)std::chrono::duration_cast<std::chrono::microseconds>(
+               std::chrono::steady_clock::now().time_since_epoch())
+        .count();
+}
+}
+
+// Only the game thread's ROM reads count toward a frame; the audio thread reads on its own time.
+std::thread::id gPortMainThreadId;
+
+namespace Fast {
+extern int gPortFrameTris;
+extern int gPortFrameTexUploads;
+extern int gPortFrameNearClip;
+} // namespace Fast
+
 void push_frame() {
 #ifdef __vita__
     {
@@ -188,6 +216,14 @@ void push_frame() {
 
     // Time the work half of the frame (everything past the limiter) so a lag spike names itself.
     auto portWorkStart = std::chrono::high_resolution_clock::now();
+    gPortMainThreadId = std::this_thread::get_id();
+    gPortFrameMsRom = 0.0;
+    gPortFrameMsRomWait = 0.0;
+    gPortFrameRomReads = 0;
+    gPortFrameRomBytes = 0;
+    gPortFrameMsShader = 0.0;
+    gPortFrameShaders = 0;
+    gPortFrameMsFx = 0.0;
 
 #ifdef __vita__
     // Demo-freeze watchdog: logs script/battle state once a second while demoState is active.
@@ -216,19 +252,6 @@ void push_frame() {
     }
 #endif
 
-    // FPS diagnostic: print every 300 frames
-    {
-        static auto fpsStart = std::chrono::high_resolution_clock::now();
-        static int fpsFrameCount = 0;
-        fpsFrameCount++;
-        if (fpsFrameCount >= 300) {
-            auto fpsNow = std::chrono::high_resolution_clock::now();
-            double elapsed_s = std::chrono::duration<double>(fpsNow - fpsStart).count();
-            fprintf(stderr, "[FPS] %d frames in %.2fs = %.1f fps\n", fpsFrameCount, elapsed_s, fpsFrameCount / elapsed_s);
-            fpsStart = fpsNow;
-            fpsFrameCount = 0;
-        }
-    }
 
     port_flash_flush_if_dirty();
 
@@ -269,15 +292,50 @@ void push_frame() {
     GameEngine::EndAudioFrame();
 
     {
-        static int sSlowLogged = 0;
+        // Spike budget is per game mode. A shared budget got spent on world loading long before
+        // the battle menus the lag reports are about.
+        static int sSlowLogged[32] = { 0 };
+        static double sWindowMax = 0.0;
+        static double sWindowSum = 0.0;
+        static int sWindowFrames = 0;
+        static int sWindowTris = 0;
+        static int sWindowUploads = 0;
+        static int sWindowNearClip = 0;
         double ms = std::chrono::duration<double, std::milli>(
                         std::chrono::high_resolution_clock::now() - portWorkStart)
                         .count();
-        if (ms > 40.0 && sSlowLogged < 120) {
-            sSlowLogged++;
-            fprintf(stderr, "[slow] %.1fms mode=%d ctx=%d submitted=%d script=%d frame=%d\n", ms, get_game_mode(),
-                    gGameStatusPtr ? gGameStatusPtr->context : -1, sFrameSubmitted ? 1 : 0,
-                    gGameStatusPtr ? gGameStatusPtr->mainScriptID : -1, sPushFrameCount);
+        int mode = get_game_mode();
+
+        if (ms > 40.0 && sSlowLogged[mode & 31] < 12) {
+            sSlowLogged[mode & 31]++;
+            fprintf(stderr,
+                    "[slow] %.1fms mode=%d ctx=%d | rom %d reads %dB %.1fms (lock wait %.1fms) | shaders %d "
+                    "%.1fms | fx %.1fms | tris=%d tex=%d frame=%d\n",
+                    ms, mode, gGameStatusPtr ? gGameStatusPtr->context : -1, gPortFrameRomReads, gPortFrameRomBytes,
+                    gPortFrameMsRom, gPortFrameMsRomWait, gPortFrameShaders, gPortFrameMsShader, gPortFrameMsFx,
+                    Fast::gPortFrameTris, Fast::gPortFrameTexUploads, sPushFrameCount);
+        }
+
+        sWindowSum += ms;
+        sWindowTris += Fast::gPortFrameTris;
+        sWindowUploads += Fast::gPortFrameTexUploads;
+        sWindowNearClip += Fast::gPortFrameNearClip;
+        sWindowFrames++;
+        if (ms > sWindowMax) {
+            sWindowMax = ms;
+        }
+        if (sWindowFrames >= 600) {
+            fprintf(stderr,
+                    "[perf] %d frames avg=%.1fms max=%.1fms tris/f=%d tex/f=%d nearclip/f=%d mode=%d ctx=%d\n",
+                    sWindowFrames, sWindowSum / sWindowFrames, sWindowMax, sWindowTris / sWindowFrames,
+                    sWindowUploads / sWindowFrames, sWindowNearClip / sWindowFrames, mode,
+                    gGameStatusPtr ? gGameStatusPtr->context : -1);
+            sWindowFrames = 0;
+            sWindowSum = 0.0;
+            sWindowMax = 0.0;
+            sWindowTris = 0;
+            sWindowUploads = 0;
+            sWindowNearClip = 0;
         }
     }
 
@@ -329,6 +387,7 @@ void boot_main_pc() {
 
     // Load UI textures (window borders, file menu graphics) from ROM
     port_load_ui_textures();
+    port_fill_asset_stubs();
 
     // Load map-specific textures (dgb_01 bridges, pra_31 stairs, dro_02 cards, blanket)
     port_load_map_textures();

@@ -130,6 +130,130 @@ BSS s32 D_80159180;
 
 void hud_element_setup_cam(void);
 
+#ifdef PORT
+// The hud cache is 192 entries per table plus a fixed byte budget. The pause item list loads a
+// fresh script for every icon on screen every frame, so it is the one place that runs out.
+static void port_hud_cache_report(const char* what, const char* kind, s32 id, s32 extra) {
+    static s32 sLogged = 0;
+
+    if (sLogged < 16) {
+        s32 worldRaster = 0;
+        s32 battleRaster = 0;
+        s32 i;
+
+        sLogged++;
+        for (i = 0; i < MAX_HUD_CACHE_ENTRIES; i++) {
+            if (gHudElementCacheTableRasterWorld[i].id != -1) {
+                worldRaster++;
+            }
+            if (gHudElementCacheTableRasterBattle[i].id != -1) {
+                battleRaster++;
+            }
+        }
+        fprintf(stderr, "[hudcache] %s %s id=0x%X extra=0x%X ctx=%d bytes=%d/%d entries world=%d battle=%d max=%d\n",
+                what, kind, id, extra, gGameStatusPtr->context, *gHudElementCacheSize,
+                gHudElementCacheCapacity, worldRaster, battleRaster, MAX_HUD_CACHE_ENTRIES);
+    }
+}
+
+// Garbled icons: record what each cached icon looked like straight out of the ROM, then check it
+// again when it is drawn. Different means the cache memory was overwritten after loading; the same
+// means the icon was wrong from the start.
+static struct {
+    u8* data;
+    u32 sum;
+    s32 size;
+} sPortHudLoads[2 * MAX_HUD_CACHE_ENTRIES];
+static s32 sPortHudLoadCount = 0;
+
+static u32 port_hud_sum(const u8* p, s32 n) {
+    u32 h = 2166136261u;
+    s32 i;
+
+    for (i = 0; i < n; i++) {
+        h = (h ^ p[i]) * 16777619u;
+    }
+    return h;
+}
+
+static void port_hud_record_load(HudCacheEntry* entry, s32 size) {
+    s32 i;
+
+    for (i = 0; i < sPortHudLoadCount; i++) {
+        if (sPortHudLoads[i].data == entry->data) {
+            break;
+        }
+    }
+    if (i == sPortHudLoadCount) {
+        if (sPortHudLoadCount >= (s32)ARRAY_COUNT(sPortHudLoads)) {
+            return;
+        }
+        sPortHudLoadCount++;
+    }
+    sPortHudLoads[i].data = entry->data;
+    sPortHudLoads[i].size = size;
+    sPortHudLoads[i].sum = port_hud_sum(entry->data, size);
+}
+
+static void port_hud_check_draw(HudElement* hudElement, u8* imageAddr) {
+    static s32 sChecks = 0;
+    static s32 sReports = 0;
+    s32 i;
+
+    if (sChecks >= 4000 || sReports >= 16) {
+        return;
+    }
+    sChecks++;
+    for (i = 0; i < sPortHudLoadCount; i++) {
+        if (sPortHudLoads[i].data == imageAddr) {
+            u32 now = port_hud_sum(imageAddr, sPortHudLoads[i].size);
+
+            if (now != sPortHudLoads[i].sum) {
+                sReports++;
+                fprintf(stderr, "[hudcorrupt] icon at %p changed since it was loaded (%d bytes) ctx=%d flags=0x%X "
+                                "first=%02X%02X%02X%02X\n",
+                        (void*)imageAddr, sPortHudLoads[i].size, gGameStatusPtr->context, hudElement->flags,
+                        imageAddr[0], imageAddr[1], imageAddr[2], imageAddr[3]);
+                // Report each changed buffer once.
+                sPortHudLoads[i].sum = now;
+            }
+            return;
+        }
+    }
+}
+
+static void port_hud_cache_full(const char* kind, s32 id, s32 used) {
+    port_hud_cache_report("full", kind, id, used);
+}
+
+static void port_hud_cache_miss(const char* kind, s32 id, s32 flags) {
+    static s32 sLogged = 0;
+
+    port_hud_cache_report("miss", kind, id, flags);
+
+    // Say whether the id landed in the other table. That is the difference between the cache
+    // running out and the element reading the wrong one of the two tables.
+    if (sLogged < 8) {
+        s32 inWorld = -1;
+        s32 inBattle = -1;
+        s32 i;
+
+        sLogged++;
+        for (i = 0; i < MAX_HUD_CACHE_ENTRIES; i++) {
+            if (gHudElementCacheTableRasterWorld[i].id == id || gHudElementCacheTablePaletteWorld[i].id == id) {
+                inWorld = i;
+            }
+            if (gHudElementCacheTableRasterBattle[i].id == id || gHudElementCacheTablePaletteBattle[i].id == id) {
+                inBattle = i;
+            }
+        }
+        fprintf(stderr, "[hudcache] miss %s id=0x%X flags=0x%X foundWorld=%d foundBattle=%d tablePtr=%s\n",
+                kind, id, flags, inWorld, inBattle,
+                gHudElementCacheTableRaster == gHudElementCacheTableRasterWorld ? "world" : "battle");
+    }
+}
+#endif
+
 void hud_element_load_script(HudElement* hudElement, HudScript* anim) {
     intptr_t* pos = (intptr_t*)anim;
     s32 raster;
@@ -194,6 +318,14 @@ void hud_element_load_script(HudElement* hudElement, HudScript* anim) {
                 i = 0;
                 entry = gHudElementCacheTableRaster;
                 while (true) {
+#ifdef PORT
+                    // Vanilla walks past the end of this table when it fills and writes into
+                    // whatever BSS follows. Stop at the end and report instead.
+                    if (i >= MAX_HUD_CACHE_ENTRIES) {
+                        port_hud_cache_full("raster", raster, *gHudElementCacheSize);
+                        break;
+                    }
+#endif
                     if (entry->id == -1) {
                         entry->id = raster;
                         entry->data = &gHudElementCacheBuffer[*gHudElementCacheSize];
@@ -202,9 +334,18 @@ void hud_element_load_script(HudElement* hudElement, HudScript* anim) {
                         } else {
                             capacity = gHudElementCacheCapacity / 2;
                         }
+#ifdef PORT
+                        if (capacity <= *gHudElementCacheSize + gHudElementSizes[preset].size) {
+                            port_hud_cache_full("raster bytes", raster, *gHudElementCacheSize);
+                            entry->id = -1;
+                            break;
+                        }
+#else
                         ASSERT(capacity > *gHudElementCacheSize + gHudElementSizes[preset].size);
+#endif
 #ifdef PORT
                         nuPiReadRom(resolve_rom_offset(icon_ROM_START + raster), entry->data, gHudElementSizes[preset].size);
+                        port_hud_record_load(entry, gHudElementSizes[preset].size);
 #else
                         nuPiReadRom((s32)icon_ROM_START + raster, entry->data, gHudElementSizes[preset].size);
 #endif
@@ -229,11 +370,19 @@ void hud_element_load_script(HudElement* hudElement, HudScript* anim) {
                 }
 
                 pos++;
+#ifndef PORT
                 ASSERT(i < MAX_HUD_CACHE_ENTRIES);
+#endif
 
                 entry = gHudElementCacheTablePalette;
                 i = 0;
                 while (true) {
+#ifdef PORT
+                    if (i >= MAX_HUD_CACHE_ENTRIES) {
+                        port_hud_cache_full("palette", palette, *gHudElementCacheSize);
+                        break;
+                    }
+#endif
                     if (entry->id == -1) {
                         entry->id = palette;
                         entry->data = &gHudElementCacheBuffer[*gHudElementCacheSize];
@@ -242,7 +391,15 @@ void hud_element_load_script(HudElement* hudElement, HudScript* anim) {
                         } else {
                             capacity = gHudElementCacheCapacity / 2;
                         }
+#ifdef PORT
+                        if (capacity <= *gHudElementCacheSize + 32) {
+                            port_hud_cache_full("palette bytes", palette, *gHudElementCacheSize);
+                            entry->id = -1;
+                            break;
+                        }
+#else
                         ASSERT(capacity > *gHudElementCacheSize + 32);
+#endif
 #ifdef PORT
                         nuPiReadRom(resolve_rom_offset(icon_ROM_START + palette), entry->data, 32);
 #else
@@ -269,7 +426,9 @@ void hud_element_load_script(HudElement* hudElement, HudScript* anim) {
                 }
 
                 pos++;
+#ifndef PORT
                 ASSERT(i < MAX_HUD_CACHE_ENTRIES);
+#endif
                 break;
         }
     }
@@ -297,6 +456,42 @@ void hud_element_draw_rect(HudElement* hudElement, s16 texSizeX, s16 texSizeY, s
     s16 tempX, tempY;
 
     imageAddr = hudElement->imageAddr;
+#ifdef PORT
+    port_hud_check_draw(hudElement, imageAddr);
+    // Garbled HUD icons show up after pausing. The pause menu borrows D_80200000 as its icon cache;
+    // a world element still pointing in there after unpausing draws whatever lands there next.
+    // Name any world element whose image lives in a cache it does not own.
+    {
+        extern u8 D_80200000[];
+        static void* sReported[32];
+        static s32 sReportedCount = 0;
+        uintptr_t a = (uintptr_t)imageAddr;
+        const char* where = nullptr;
+
+        if (a >= (uintptr_t)D_80200000 && a < (uintptr_t)D_80200000 + 0x38000) {
+            where = "pause-aux";
+        } else if (gHudElementCacheBufferBattle != nullptr && a >= (uintptr_t)gHudElementCacheBufferBattle &&
+                   a < (uintptr_t)gHudElementCacheBufferBattle + 0x11000) {
+            where = "battle";
+        }
+        if (where != nullptr && gGameStatusPtr->context == CONTEXT_WORLD && sReportedCount < 32) {
+            s32 k;
+            s32 seen = false;
+
+            for (k = 0; k < sReportedCount; k++) {
+                if (sReported[k] == (void*)hudElement) {
+                    seen = true;
+                }
+            }
+            if (!seen) {
+                sReported[sReportedCount++] = (void*)hudElement;
+                fprintf(stderr, "[hudstale] world element draws from %s cache: img=%p pal=%p flags=0x%X anim=%p\n",
+                        where, (void*)imageAddr, (void*)hudElement->paletteAddr, hudElement->flags,
+                        (void*)hudElement->anim);
+            }
+        }
+    }
+#endif
     paletteAddr = (u16*) hudElement->paletteAddr;
 
     screenPosOffsetScaledX = hudElement->screenPosOffset.x * 1024;
@@ -622,6 +817,10 @@ void hud_element_draw_rect(HudElement* hudElement, s16 texSizeX, s16 texSizeY, s
 
 void hud_element_clear_cache(void) {
     s32 i;
+
+#ifdef PORT
+    sPortHudLoadCount = 0;
+#endif
     HudCacheEntry* entryRaster;
     HudCacheEntry* entryPalette;
 
@@ -972,20 +1171,42 @@ s32 hud_element_update(HudElement* hudElement) {
                 if (entryRaster[i].id == *nextPos) {
                     break;
                 }
+#ifdef PORT
+                // An image that never made it into the cache is a missing icon, not a reason to
+                // kill the game. Keep the last one and say which id went missing.
+                if (++i >= MAX_HUD_CACHE_ENTRIES) {
+                    port_hud_cache_miss("raster", *nextPos, hudElement->flags);
+                    i = -1;
+                    break;
+                }
+#else
                 ASSERT(++i < MAX_HUD_CACHE_ENTRIES);
+#endif
             }
 
             nextPos++;
-            hudElement->imageAddr = entryRaster[i].data;
+            if (i >= 0) {
+                hudElement->imageAddr = entryRaster[i].data;
+            }
 
             i = 0;
             while (true) {
                 if (entryPalette[i].id == *nextPos) {
                     break;
                 }
+#ifdef PORT
+                if (++i >= MAX_HUD_CACHE_ENTRIES) {
+                    port_hud_cache_miss("palette", *nextPos, hudElement->flags);
+                    i = -1;
+                    break;
+                }
+#else
                 ASSERT(++i < MAX_HUD_CACHE_ENTRIES);
+#endif
             }
-            hudElement->paletteAddr = entryPalette[i].data;
+            if (i >= 0) {
+                hudElement->paletteAddr = entryPalette[i].data;
+            }
             nextPos += 3;
             hudElement->readPos = (HudScript*)nextPos;
 
