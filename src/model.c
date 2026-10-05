@@ -1,4 +1,7 @@
 #include "common.h"
+#ifdef PORT
+#include "port/mod_assets.h"
+#endif
 #include "ld_addrs.h"
 #include "model.h"
 #include "effects.h"
@@ -2137,6 +2140,9 @@ void load_texture_impl(u32 romOffset, TextureHandle* handle, TextureHeader* head
         handle->palette = nullptr;
     }
     dma_copy((u8*) romOffset, (u8*) (romOffset + mainSize + mainPalSize), TextureHeapPos);
+#ifdef PORT
+    Port_ModRegisterMapTexture(handle->raster, mainSize, (const char*)header->name, FALSE);
+#endif
     // PORT: Do NOT byte-swap raster or palette data here.
     // Fast3D expects texture data in N64 big-endian format and handles
     // the endianness conversion internally during texture upload.
@@ -2152,6 +2158,9 @@ void load_texture_impl(u32 romOffset, TextureHandle* handle, TextureHeader* head
             handle->auxPalette = nullptr;
         }
         dma_copy((u8*) romOffset, (u8*) (romOffset + auxSize + auxPalSize), TextureHeapPos);
+#ifdef PORT
+        Port_ModRegisterMapTexture(handle->auxRaster, auxSize, (const char*)header->name, TRUE);
+#endif
         // PORT: Same as main texture — don't byte-swap; Fast3D handles N64 format.
         TextureHeapPos += auxSize + auxPalSize;
     } else {

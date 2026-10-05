@@ -24,6 +24,7 @@
 #include <stdlib.h>
 #include "port/endian.h"
 #include "port/effect_gfx_tables.h"
+#include "port/mod_assets.h"
 
 // N64 struct sizes
 #define N64_GFX_CMD_SIZE  8
@@ -301,6 +302,7 @@ static int effect_gfx_load_and_swizzle_impl(u32 romStart, u32 romEnd) {
             u32 size = symbols[i].sizeBytes;
             if (offset + size <= blobSize && symbols[i].pcArray != NULL) {
                 memcpy(symbols[i].pcArray, blob + offset, size);
+                Port_ModOnRomRead(segInfo->romStart + offset, symbols[i].pcArray, size);
             }
         }
     }

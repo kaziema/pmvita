@@ -108,6 +108,7 @@ void replace_window_update(s32 idx, s8 arg1, WindowUpdateFunc pendingFunc);
 void decode_yay0(void* src, void* dst);
 #ifdef PORT
 void decode_yay0_bounded(void* src, void* dst, u32 dstSize);
+void dma_load_msg_capped(u32 msgID, void* dest, u32 cap);
 #endif
 
 s32 ai_check_player_dist(struct Enemy* enemy, s32 arg1, f32 arg2, f32 arg3);

@@ -31,6 +31,7 @@
 
 #include "fast/interpreter.h"
 #include "fast/lus_gbi.h"
+#include "mod_assets.h"
 #include "fast/backends/gfx_window_manager_api.h"
 #include "fast/backends/gfx_rendering_api.h"
 
@@ -595,6 +596,17 @@ const uint8_t* Interpreter::GetReplacementData(const RawTexMetadata* metadata, c
     return (it != mMaskedTextures.end() && it->second.replacementData) ? it->second.replacementData : fallback;
 }
 
+// PORT: a LoadBlock tile can be larger than the data it loaded (a 16x16 quadrant drawn
+// through a mirrored 32x32 tile). Size the upload from the tile's line and the bytes loaded.
+static void port_fix_loadblock_dims(uint32_t lineBytes, uint32_t sizeBytes, uint32_t bitsPerPixel,
+                                    uint32_t& width, uint32_t& height) {
+    if (lineBytes == 0 || (uint64_t)width * height * bitsPerPixel / 8 <= sizeBytes) {
+        return;
+    }
+    width = lineBytes * 8 / bitsPerPixel;
+    height = sizeBytes / lineBytes;
+}
+
 void Interpreter::ImportTextureRgba16(int tile, bool importReplacement) {
     const RawTexMetadata* metadata = &mRdp->loaded_texture[mRdp->texture_tile[tile].tmem_index].raw_tex_metadata;
     const uint8_t* addr =
@@ -622,6 +634,7 @@ void Interpreter::ImportTextureRgba16(int tile, bool importReplacement) {
         }
         width = lrs - uls + 1;
         height = lrt - ult + 1;
+        port_fix_loadblock_dims(mRdp->texture_tile[tile].line_size_bytes, sizeBytes, 16, width, height);
         fullImageLineSizeBytes = width * 2;
     } else {
         if (line_size_bytes == 0) return;
@@ -745,6 +758,7 @@ void Interpreter::ImportTextureIA4(int tile, bool importReplacement) {
         }
         width = lrs - uls + 1;
         height = lrt - ult + 1;
+        port_fix_loadblock_dims(mRdp->texture_tile[tile].line_size_bytes, sizeBytes, 4, width, height);
     } else {
         if (lineSizeBytes == 0) return;
         width = lineSizeBytes * 2; // 2 pixels per byte for IA4
@@ -794,6 +808,7 @@ void Interpreter::ImportTextureIA8(int tile, bool importReplacement) {
         }
         width = lrs - uls + 1;
         height = lrt - ult + 1;
+        port_fix_loadblock_dims(mRdp->texture_tile[tile].line_size_bytes, sizeBytes, 8, width, height);
     } else {
         if (lineSizeBytes == 0) return;
         width = lineSizeBytes; // 1 byte per pixel for IA8
@@ -834,6 +849,7 @@ void Interpreter::ImportTextureIA16(int tile, bool importReplacement) {
         }
         width = lrs - uls + 1;
         height = lrt - ult + 1;
+        port_fix_loadblock_dims(mRdp->texture_tile[tile].line_size_bytes, size_bytes, 16, width, height);
         full_image_line_size_bytes = width * 2;
     } else {
         if (line_size_bytes == 0) return;
@@ -897,6 +913,7 @@ void Interpreter::ImportTextureI4(int tile, bool importReplacement) {
         }
         width = lrs - uls + 1;
         height = lrt - ult + 1;
+        port_fix_loadblock_dims(mRdp->texture_tile[tile].line_size_bytes, sizeBytes, 4, width, height);
         // Adjust fullImageLineSizeBytes for the LoadBlock case
         fullImageLineSizeBytes = width / 2;
     } else {
@@ -975,6 +992,7 @@ void Interpreter::ImportTextureI8(int tile, bool importReplacement) {
         }
         width = lrs - uls + 1;
         height = lrt - ult + 1;
+        port_fix_loadblock_dims(mRdp->texture_tile[tile].line_size_bytes, sizeBytes, 8, width, height);
     } else {
         if (line_size_bytes == 0) return;
         width = line_size_bytes; // 1 byte per pixel for I8
@@ -1059,6 +1077,7 @@ void Interpreter::ImportTextureCi4(int tile, bool importReplacement) {
         }
         width = lrs - uls + 1;
         height = lrt - ult + 1;
+        port_fix_loadblock_dims(mRdp->texture_tile[tile].line_size_bytes, sizeBytes, 4, width, height);
     } else {
         if (lineSizeBytes == 0) return;
         // LoadTile: line_size_bytes is already the correct per-row byte count
@@ -1123,6 +1142,7 @@ void Interpreter::ImportTextureCi8(int tile, bool importReplacement) {
         }
         width = lrs - uls + 1;
         height = lrt - ult + 1;
+        port_fix_loadblock_dims(mRdp->texture_tile[tile].line_size_bytes, sizeBytes, 8, width, height);
     } else {
         uint32_t resultLineSizeBytes = lineSizeBytes;
         if (metadata->h_byte_scale != 1) {
@@ -4264,6 +4284,19 @@ bool gfx_set_timg_handler_rdp(F3DGfx** cmd0) {
             rawTexMetdata.v_pixel_scale = tex->VPixelScale;
             rawTexMetdata.type = tex->Type;
             rawTexMetdata.resource = tex;
+        } else {
+            // PORT: a ROM texture a mod replaces draws from the mod's resource instead
+            std::shared_ptr<Fast::Texture> tex = Port_ModTextureFor(imgData);
+            if (tex != nullptr) {
+                i = (uintptr_t)tex->ImageData;
+                texFlags = tex->Flags;
+                rawTexMetdata.width = tex->Width;
+                rawTexMetdata.height = tex->Height;
+                rawTexMetdata.h_byte_scale = tex->HByteScale;
+                rawTexMetdata.v_pixel_scale = tex->VPixelScale;
+                rawTexMetdata.type = tex->Type;
+                rawTexMetdata.resource = tex;
+            }
         }
     }
 

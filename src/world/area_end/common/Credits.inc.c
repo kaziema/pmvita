@@ -783,7 +783,12 @@ void N(credits_load_message)(CreditsEntry* entry) {
 #else
         if (entry->msgID >= 0) {
 #endif
+#ifdef PORT
+            dma_load_msg_capped(entry->msgID, N(CreditsMessageBuffers)[N(CreditsBufferIndex)],
+                                sizeof(N(CreditsMessageBuffers)[0]));
+#else
             dma_load_msg(entry->msgID, N(CreditsMessageBuffers)[N(CreditsBufferIndex)]);
+#endif
             line->message = N(CreditsMessageBuffers)[N(CreditsBufferIndex)];
             N(CreditsBufferIndex)++;
             if (N(CreditsBufferIndex) >= ARRAY_COUNT(N(CreditsMessageBuffers))) {

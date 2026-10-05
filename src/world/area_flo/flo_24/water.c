@@ -25,7 +25,9 @@ EvtScript N(EVS_Scene_FillWithWater) = {
             Wait(1)
             Goto(0)
         EndIf
-        // should end thread here
+#ifdef PORT
+    EndThread
+#endif
     //@bug thread is never terminated
     Thread
         Call(MakeLerp, 45, 100, 150, EASING_LINEAR)
@@ -37,7 +39,9 @@ EvtScript N(EVS_Scene_FillWithWater) = {
                 BreakLoop
             EndIf
         EndLoop
-        // should end thread here
+#ifdef PORT
+    EndThread
+#endif
     Wait(30)
     Set(GB_StoryProgress, STORY_CH6_FILLED_SPRING_WITH_WATER)
     Call(GotoMap, Ref("flo_10"), flo_10_ENTRY_2)

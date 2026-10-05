@@ -1,5 +1,8 @@
 #include "common.h"
 #include "ld_addrs.h"
+#ifdef PORT
+#include "port/mod_assets.h"
+#endif
 #include "npc.h"
 #include "camera.h"
 #include "hud_element.h"
@@ -384,6 +387,15 @@ void* load_asset_by_name(const char* assetName, u32* decompressedSize) {
 }
 
 s32 get_asset_offset(char* assetName, s32* compressedSize) {
+#ifdef PORT
+    {
+        // mod map textures are named after the archive being loaded
+        size_t len = strlen(assetName);
+        if (len > 4 && strcmp(assetName + len - 4, "_tex") == 0) {
+            Port_ModSetTexArchive(assetName);
+        }
+    }
+#endif
     AssetHeader firstHeader;
     AssetHeader* assetTableBuffer;
     AssetHeader* curAsset;

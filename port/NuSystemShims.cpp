@@ -8,6 +8,7 @@
  * Reference: papermario-main/include/nu/nusys.h
  */
 #include <libultraship.h>
+#include "mod_assets.h"
 #include "NuSystemShims.h"
 #include "Engine.h"
 #include <SDL2/SDL.h>
@@ -497,7 +498,7 @@ static const u8* rom_cache_block(u32 blockIdx) {
     return sRomCacheData[victim];
 }
 
-void nuPiReadRom(u32 rom_addr, void* buf_ptr, u32 size) {
+static void nuPiReadRom_Raw(u32 rom_addr, void* buf_ptr, u32 size) {
     nuPiReadRom_OpenRomFile();
 
     // PORT: time game-thread reads, and separately how long they wait on the audio thread's lock.
@@ -580,6 +581,12 @@ void nuPiReadRom(u32 rom_addr, void* buf_ptr, u32 size) {
     // Callers that read multi-byte integers (u32/u16) from ROM data must handle
     // endianness conversion themselves. Raw byte data (compressed streams, textures,
     // rasters) is used as-is since individual bytes have no endianness.
+}
+
+// PORT: mods see every ROM read once the file lock is released
+void nuPiReadRom(u32 rom_addr, void* buf_ptr, u32 size) {
+    nuPiReadRom_Raw(rom_addr, buf_ptr, size);
+    Port_ModOnRomRead(rom_addr, buf_ptr, size);
 }
 
 /**
