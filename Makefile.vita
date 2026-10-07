@@ -230,6 +230,7 @@ $(TARGET).vpk: $(TARGET).velf check-livearea
 		-a livearea/discord.png=sce_sys/livearea/contents/discord.png \
 		-a livearea/template.xml=sce_sys/livearea/contents/template.xml \
 		-a papership.o2r=papership.o2r
+	shasum -a 256 $(TARGET).vpk > SHA256SUMS.txt
 
 %.velf: %.elf
 	cp $< $<.unstripped.elf
