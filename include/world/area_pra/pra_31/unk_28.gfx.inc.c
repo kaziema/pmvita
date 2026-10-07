@@ -9,7 +9,7 @@ Gfx N(unk_28_gfx)[] = {
     {(uintptr_t)0xDE000000, (uintptr_t)N(texture_2_gfx)},  // gsSPDisplayList -> N(texture_2_gfx)
     {(uintptr_t)0xD9FDFFFF, (uintptr_t)0x00000000},  // gsSPGeometryMode
     {(uintptr_t)0xD9FFFFFF, (uintptr_t)0x00200400},  // gsSPGeometryMode
-    {(uintptr_t)0x01004008, (uintptr_t)((u8*)N(stairs_vtx) + 0x60)},  // gsSPVertex -> N(stairs_vtx) + 0x60
+    {(uintptr_t)0x01004008, (uintptr_t)&N(stairs_vtx)[6]},  // gsSPVertex -> N(stairs_vtx) + 0x60
     {(uintptr_t)0x06000204, (uintptr_t)0x00000406},  // gsSP2Triangles
     {(uintptr_t)0xDF000000, (uintptr_t)0x00000000},  // gsSPEndDisplayList
 };

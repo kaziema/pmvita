@@ -98,7 +98,7 @@ void Init() {
             }
         }
     }
-    fprintf(stderr, "[mods] %zu mod assets found (text=%d fonts=%d textures=%d)\n", sModFiles.size(), sHasMessages,
+    fprintf(stderr, "[mods] %u mod assets found (text=%d fonts=%d textures=%d)\n", (unsigned)sModFiles.size(), sHasMessages,
             sHasBlobs, sHasTextures);
 }
 
@@ -220,7 +220,7 @@ extern "C" int Port_ModLoadMessage(unsigned int msgID, void* dest, unsigned int 
     uint8_t* out = (uint8_t*)dest;
     size_t n = blob->Data.size();
     if (n > cap - 1) {
-        fprintf(stderr, "[mods] %s is %zu bytes, cut to %u\n", path.c_str(), n, cap - 1);
+        fprintf(stderr, "[mods] %s is %u bytes, cut to %u\n", path.c_str(), (unsigned)n, cap - 1);
         n = cap - 1;
     }
     memcpy(out, blob->Data.data(), n);
@@ -265,7 +265,7 @@ extern "C" void Port_ModOnRomRead(uint32_t rom, void* dest, uint32_t size) {
             if (blob != nullptr && !blob->Data.empty()) {
                 size_t n = blob->Data.size() < readable ? blob->Data.size() : readable;
                 memcpy(at, blob->Data.data(), n);
-                fprintf(stderr, "[mods] font %s applied (%zu bytes)\n", path.c_str(), n);
+                fprintf(stderr, "[mods] font %s applied (%u bytes)\n", path.c_str(), (unsigned)n);
             }
         }
     }

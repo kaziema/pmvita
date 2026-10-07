@@ -11,7 +11,7 @@ Gfx N(toad_house_blanket_gfx)[] = {
     {(uintptr_t)0xF5100800, (uintptr_t)0x00094140},  // gsDPSetTile
     {(uintptr_t)0xF2000000, (uintptr_t)0x0003C07C},  // gsDPSetTileSize
     {(uintptr_t)0xD9FFFFFF, (uintptr_t)0x00020000},  // gsSPGeometryMode
-    {(uintptr_t)0x01020040, (uintptr_t)((u8*)N(toad_house_blanket_vtx) + 0x320)},  // gsSPVertex -> N(toad_house_blanket_vtx) + 0x320
+    {(uintptr_t)0x01020040, (uintptr_t)&N(toad_house_blanket_vtx)[50]},  // gsSPVertex -> N(toad_house_blanket_vtx) + 0x320
     {(uintptr_t)0x06000204, (uintptr_t)0x00000406},  // gsSP2Triangles
     {(uintptr_t)0x0602080A, (uintptr_t)0x00020A04},  // gsSP2Triangles
     {(uintptr_t)0x06080C0E, (uintptr_t)0x00080E0A},  // gsSP2Triangles
@@ -32,7 +32,7 @@ Gfx N(toad_house_blanket_gfx)[] = {
     {(uintptr_t)0x061E2228, (uintptr_t)0x001E283E},  // gsSP2Triangles
     {(uintptr_t)0x0622262A, (uintptr_t)0x00222A28},  // gsSP2Triangles
     {(uintptr_t)0x0626242C, (uintptr_t)0x00262C2A},  // gsSP2Triangles
-    {(uintptr_t)0x01012024, (uintptr_t)((u8*)N(toad_house_blanket_vtx) + 0x320)},  // gsSPVertex -> N(toad_house_blanket_vtx) + 0x320
+    {(uintptr_t)0x01012024, (uintptr_t)&N(toad_house_blanket_vtx)[50]},  // gsSPVertex -> N(toad_house_blanket_vtx) + 0x320
     {(uintptr_t)0x06000204, (uintptr_t)0x00000406},  // gsSP2Triangles
     {(uintptr_t)0x0602080A, (uintptr_t)0x00020A04},  // gsSP2Triangles
     {(uintptr_t)0x06080C0E, (uintptr_t)0x00080E0A},  // gsSP2Triangles

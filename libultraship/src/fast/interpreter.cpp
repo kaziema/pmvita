@@ -4681,6 +4681,18 @@ bool gfx_set_fill_color_handler_rdp(F3DGfx** cmd0) {
     return false;
 }
 
+void port_gfx_set_strict_decal(bool on);
+
+bool gfx_set_strict_decal_handler_custom(F3DGfx** cmd0) {
+    Interpreter* gfx = mInstanceRaw;
+    if (!gfx) return false;
+    F3DGfx* cmd = *cmd0;
+
+    gfx->Flush();
+    port_gfx_set_strict_decal(cmd->words.w1 != 0);
+    return false;
+}
+
 bool gfx_set_intensity_handler_custom(F3DGfx** cmd0) {
     Interpreter* gfx = mInstanceRaw;
     if (!gfx) return false;
@@ -4948,6 +4960,7 @@ static constexpr UcodeHandler rdpHandlers = {
 static constexpr UcodeHandler otrHandlers = {
     { OTR_G_SETTIMG_OTR_HASH,
       { "G_SETTIMG_OTR_HASH", gfx_set_timg_otr_hash_handler_custom } },       // G_SETTIMG_OTR_HASH (0x20)
+    { OPCODE(0x4b), { "G_SET_STRICT_DECAL", gfx_set_strict_decal_handler_custom } },
     { OTR_G_SETFB, { "G_SETFB", gfx_set_fb_handler_custom } },                // G_SETFB (0x21)
     { OTR_G_RESETFB, { "G_RESETFB", gfx_reset_fb_handler_custom } },          // G_RESETFB (0x22)
     { OTR_G_SETTIMG_FB, { "G_SETTIMG_FB", gfx_set_timg_fb_handler_custom } }, // G_SETTIMG_FB (0x23)

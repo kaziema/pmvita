@@ -728,23 +728,37 @@ void GfxRenderingAPIOGL::SetUseAlpha(bool use_alpha) {
     }
 }
 
+// PORT: strict decal, set by G_SET_STRICT_DECAL; kept out of the class to leave its layout alone
+static bool sPortStrictDecal = false;
+static bool sPortLastStrictDecal = false;
+static bool sPortLastDepthDecal = false;
+
+void port_gfx_set_strict_decal(bool on) {
+    sPortStrictDecal = on;
+}
+
 void GfxRenderingAPIOGL::DrawTriangles(float buf_vbo[], size_t buf_vbo_len, size_t buf_vbo_num_tris) {
-    if (mCurrentDepthTest != mLastDepthTest || mCurrentDepthMask != mLastDepthMask) {
+    if (mCurrentDepthTest != mLastDepthTest || mCurrentDepthMask != mLastDepthMask ||
+        mCurrentZmodeDecal != sPortLastDepthDecal || sPortStrictDecal != sPortLastStrictDecal) {
         mLastDepthTest = mCurrentDepthTest;
         mLastDepthMask = mCurrentDepthMask;
+        sPortLastDepthDecal = mCurrentZmodeDecal;
 
         if (mCurrentDepthTest || mLastDepthMask) {
             glEnable(GL_DEPTH_TEST);
             glDepthMask(mLastDepthMask ? GL_TRUE : GL_FALSE);
-            glDepthFunc(mCurrentDepthTest ? (mCurrentZmodeDecal ? GL_LEQUAL : GL_LESS) : GL_ALWAYS);
+            glDepthFunc(mCurrentDepthTest
+                            ? (mCurrentZmodeDecal ? (sPortStrictDecal ? GL_EQUAL : GL_LEQUAL) : GL_LESS)
+                            : GL_ALWAYS);
         } else {
             glDisable(GL_DEPTH_TEST);
         }
     }
 
-    if (mCurrentZmodeDecal != mLastZmodeDecal) {
+    if (mCurrentZmodeDecal != mLastZmodeDecal || sPortStrictDecal != sPortLastStrictDecal) {
         mLastZmodeDecal = mCurrentZmodeDecal;
-        if (mCurrentZmodeDecal) {
+        sPortLastStrictDecal = sPortStrictDecal;
+        if (mCurrentZmodeDecal && !sPortStrictDecal) {
             // SSDB = SlopeScaledDepthBias 120 leads to -2 at 240p which is the same as N64 mode which has very little
             // fighting
             const int n64modeFactor = 120;

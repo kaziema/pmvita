@@ -1925,7 +1925,14 @@ void imgfx_appendGfx_mesh_strip(ImgFXState* state, Matrix4f mtx) {
 
     state->floats.overlay.posX = (s32)(state->floats.overlay.posX + ufs->offsetX) % (ufs->width * 4);
     state->floats.overlay.posY = (s32)(state->floats.overlay.posY + ufs->offsetY) % (ufs->height * 4);
+#ifdef PORT
+    // clip the overlay to the sprite's own pixels, like the N64's coverage-based decal
+    gSPSetStrictDecal(gMainGfxPos++, 1);
     gSPDisplayList(gMainGfxPos++, ufs->displayList);
+    gSPSetStrictDecal(gMainGfxPos++, 0);
+#else
+    gSPDisplayList(gMainGfxPos++, ufs->displayList);
+#endif
     gSPPopMatrix(gMainGfxPos++, G_MTX_MODELVIEW);
 }
 

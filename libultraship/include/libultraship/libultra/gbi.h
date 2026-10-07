@@ -190,6 +190,7 @@
 #define G_READFB 0x3e
 #define G_SETINTENSITY 0x40
 #define G_LOAD_SHADER 0x43
+#define G_SET_STRICT_DECAL 0x4b
 #define G_SETTILESIZE_INTERP 0x44
 #define G_SETTARGETINTERPINDEX 0x45
 
@@ -2806,6 +2807,14 @@ typedef union Gfx {
 #define gsSPUnloadShader() gsDma1p(G_LOAD_SHADER, 0, 0, 0)
 
 #define gSPLoadShader(pkt, shader, type) gDma1p(pkt, G_LOAD_SHADER, shader, 0, type)
+// PORT: decal passes test depth for equality, clipping an overlay to what is already drawn
+#define gSPSetStrictDecal(pkt, on)                         \
+    {                                                      \
+        Gfx* _g = (Gfx*)(pkt);                             \
+                                                           \
+        _g->words.w0 = _SHIFTL(G_SET_STRICT_DECAL, 24, 8); \
+        _g->words.w1 = (on);                               \
+    }
 #define gSPUnloadShader(pkt) gDma1p(pkt, G_LOAD_SHADER, 0, 0, 0)
 
 #define gSPExtraGeometryMode(pkt, c, s)                                                 \

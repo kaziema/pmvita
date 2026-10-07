@@ -9,9 +9,9 @@ Gfx N(unk_17_gfx)[] = {
     {(uintptr_t)0xDE000000, (uintptr_t)N(texture_3_gfx)},  // gsSPDisplayList -> N(texture_3_gfx)
     {(uintptr_t)0xD9FDFBFF, (uintptr_t)0x00000000},  // gsSPGeometryMode
     {(uintptr_t)0xD9FFFFFF, (uintptr_t)0x00200000},  // gsSPGeometryMode
-    {(uintptr_t)0x01001002, (uintptr_t)((u8*)N(stairs_vtx) + 0x130)},  // gsSPVertex -> N(stairs_vtx) + 0x130
-    {(uintptr_t)0x01001004, (uintptr_t)((u8*)N(stairs_vtx) + 0x160)},  // gsSPVertex -> N(stairs_vtx) + 0x160
-    {(uintptr_t)0x0100400C, (uintptr_t)((u8*)N(stairs_vtx) + 0x180)},  // gsSPVertex -> N(stairs_vtx) + 0x180
+    {(uintptr_t)0x01001002, (uintptr_t)&N(stairs_vtx)[19]},  // gsSPVertex -> N(stairs_vtx) + 0x130
+    {(uintptr_t)0x01001004, (uintptr_t)&N(stairs_vtx)[22]},  // gsSPVertex -> N(stairs_vtx) + 0x160
+    {(uintptr_t)0x0100400C, (uintptr_t)&N(stairs_vtx)[24]},  // gsSPVertex -> N(stairs_vtx) + 0x180
     {(uintptr_t)0x06000608, (uintptr_t)0x00000802},  // gsSP2Triangles
     {(uintptr_t)0x0602080A, (uintptr_t)0x00020A04},  // gsSP2Triangles
     {(uintptr_t)0xDF000000, (uintptr_t)0x00000000},  // gsSPEndDisplayList
