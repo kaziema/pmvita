@@ -37,6 +37,11 @@ void Port_ModOnRomRead(uint32_t rom, void* dest, uint32_t size);
 void Port_ModSetTexArchive(const char* archiveName);
 void Port_ModRegisterMapTexture(const void* raster, uint32_t size, const char* name, int aux);
 
+/* Sprite rasters and backgrounds: register a loaded image under its PaperBoat path. */
+void Port_ModRegisterPath(const void* data, uint32_t size, const char* path);
+/* Same, but draws may also start at any whole row inside the image (rowBytes per row). */
+void Port_ModRegisterImage(const void* data, uint32_t size, uint32_t rowBytes, const char* path);
+
 #ifdef __cplusplus
 }
 
@@ -45,5 +50,5 @@ namespace Fast {
 class Texture;
 }
 /* Replacement texture for a raw texture pointer, or nullptr. Used by the Fast3D SETTIMG handler. */
-std::shared_ptr<Fast::Texture> Port_ModTextureFor(const void* addr);
+std::shared_ptr<Fast::Texture> Port_ModTextureFor(const void* addr, uint32_t* hdOffset, uint32_t* hdRowsSkipped);
 #endif

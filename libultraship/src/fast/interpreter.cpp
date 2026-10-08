@@ -4286,12 +4286,13 @@ bool gfx_set_timg_handler_rdp(F3DGfx** cmd0) {
             rawTexMetdata.resource = tex;
         } else {
             // PORT: a ROM texture a mod replaces draws from the mod's resource instead
-            std::shared_ptr<Fast::Texture> tex = Port_ModTextureFor(imgData);
+            uint32_t hdOffset, hdRowsSkipped;
+            std::shared_ptr<Fast::Texture> tex = Port_ModTextureFor(imgData, &hdOffset, &hdRowsSkipped);
             if (tex != nullptr) {
-                i = (uintptr_t)tex->ImageData;
+                i = (uintptr_t)tex->ImageData + hdOffset;
                 texFlags = tex->Flags;
                 rawTexMetdata.width = tex->Width;
-                rawTexMetdata.height = tex->Height;
+                rawTexMetdata.height = tex->Height - hdRowsSkipped;
                 rawTexMetdata.h_byte_scale = tex->HByteScale;
                 rawTexMetdata.v_pixel_scale = tex->VPixelScale;
                 rawTexMetdata.type = tex->Type;

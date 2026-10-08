@@ -438,6 +438,8 @@ extern "C" void *vita_main(void *argv) {
 #else
 int main(int argc, char* argv[]) {
 #endif
+    // boot-time ROM loads (fonts, UI textures) must count as the game thread for mods
+    gPortMainThreadId = std::this_thread::get_id();
 #ifdef __vita__
     // stderr goes nowhere on real hardware with nothing attached to catch
     // it -- redirect it to a file so every fprintf checkpoint below is

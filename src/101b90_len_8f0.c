@@ -1,4 +1,8 @@
 #include "common.h"
+#ifdef PORT
+#include <stdio.h>
+#include "port/mod_assets.h"
+#endif
 #include "sprite.h"
 #include "nu/nusys.h"
 #include "ld_addrs.h"
@@ -250,6 +254,12 @@ SpriteAnimData* spr_load_sprite(s32 idx, s32 isPlayerSprite, s32 useTailAlloc) {
             rasterEntries[r].quadCacheIndex = (s8)rasterRaw[7];
             if (!isPlayerSprite) {
                 rasterEntries[r].image = (IMG_PTR)(raw + imgOff);
+                {
+                    char modPath[48];
+                    snprintf(modPath, sizeof(modPath), "sprites/npc_sprite_%03d_raster_%d", idx, r);
+                    Port_ModRegisterPath(rasterEntries[r].image,
+                                         rasterEntries[r].width * rasterEntries[r].height / 2, modPath);
+                }
             } else {
                 // For player sprites, image field is used differently (raster cache system)
                 rasterEntries[r].image = (IMG_PTR)(uintptr_t)imgOff;
@@ -486,6 +496,13 @@ IMG_PTR spr_get_player_raster(s32 rasterIndex, s32 playerSpriteID) {
     // upper three nibbles give size / 16, lower 5 give offset
     playerRasterInfo = PlayerRasterLoadDesc[PlayerRasterLoadDescBeginSpriteIndex[playerSpriteID] + rasterIndex];
     nuPiReadRom(SpriteDataHeader[0] + (playerRasterInfo & 0xFFFFF), cacheEntry->raster, (playerRasterInfo >> 0x10) & 0xFFF0);
+#ifdef PORT
+    {
+        char modPath[48];
+        snprintf(modPath, sizeof(modPath), "sprites/player_sprite_%d_raster_%d", playerSpriteID, rasterIndex);
+        Port_ModRegisterPath(cacheEntry->raster, (playerRasterInfo >> 0x10) & 0xFFF0, modPath);
+    }
+#endif
     return cacheEntry->raster;
 }
 

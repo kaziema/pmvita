@@ -26,6 +26,7 @@
 #include "fast/resource/type/Texture.h"
 
 extern std::thread::id gPortMainThreadId;
+extern "C" void gfx_texture_cache_clear(void);
 
 namespace {
 
@@ -38,6 +39,7 @@ constexpr uint32_t kSigBytes = 64;
 struct Registered {
     uint32_t size;
     uint32_t sig;
+    uint32_t rowBytes; // nonzero: draws may start at any whole row inside the image (backgrounds)
     std::string path;
 };
 
@@ -49,6 +51,10 @@ std::unordered_set<std::string> sModFiles;
 std::map<uintptr_t, Registered> sRegistry;
 std::unordered_map<std::string, std::shared_ptr<Fast::Texture>> sTextures;
 std::unordered_set<std::string> sMissing;
+// replaced textures stay resident until this many bytes, then the set is dropped and reloaded on demand
+constexpr size_t kTextureBudget = 48 * 1024 * 1024;
+size_t sTextureBytes = 0;
+int sReplacedLogged = 0;
 char sTexArchive[32];
 
 std::shared_ptr<Ship::ArchiveManager> Archives() {
@@ -62,7 +68,7 @@ std::shared_ptr<Ship::ArchiveManager> Archives() {
 bool IsModPath(const std::string& name) {
     static const char* const kPrefixes[] = { "messages/", "charset/", "textures/", "ui/",       "icons/",
                                              "effects/",  "entities/", "battle/",  "level_up/", "logos/",
-                                             "theater/",  "world/",    "misc/" };
+                                             "theater/",  "world/",    "misc/",   "sprites/", "backgrounds/" };
     for (const char* p : kPrefixes) {
         if (name.compare(0, strlen(p), p) == 0) {
             return true;
@@ -127,13 +133,13 @@ uint32_t Signature(const void* data, uint32_t size) {
     return h;
 }
 
-void Register(const void* dest, uint32_t size, const std::string& path) {
+void Register(const void* dest, uint32_t size, const std::string& path, uint32_t rowBytes = 0) {
     uintptr_t start = (uintptr_t)dest;
     auto it = sRegistry.lower_bound(start);
     while (it != sRegistry.end() && it->first < start + size) {
         it = sRegistry.erase(it);
     }
-    sRegistry[start] = { size, Signature(dest, size), path };
+    sRegistry[start] = { size, Signature(dest, size), rowBytes, path };
 }
 
 void Unregister(uintptr_t start, uint32_t size) {
@@ -289,24 +295,65 @@ extern "C" void Port_ModRegisterMapTexture(const void* raster, uint32_t size, co
     Register(raster, size, path);
 }
 
-std::shared_ptr<Fast::Texture> Port_ModTextureFor(const void* addr) {
-    if (!sHasTextures) {
+extern "C" void Port_ModRegisterPath(const void* data, uint32_t size, const char* path) {
+    Port_ModRegisterImage(data, size, 0, path);
+}
+
+extern "C" void Port_ModRegisterImage(const void* data, uint32_t size, uint32_t rowBytes, const char* path) {
+    Init();
+    if (!sHasTextures || data == nullptr || size == 0) {
+        return;
+    }
+    if (sModFiles.find(path) == sModFiles.end()) {
+        Unregister((uintptr_t)data, size);
+        return;
+    }
+    Register(data, size, path, rowBytes);
+}
+
+std::shared_ptr<Fast::Texture> Port_ModTextureFor(const void* addr, uint32_t* hdOffset, uint32_t* hdRowsSkipped) {
+    *hdOffset = 0;
+    *hdRowsSkipped = 0;
+    if (!sHasTextures || sRegistry.empty()) {
         return nullptr;
     }
-    auto it = sRegistry.find((uintptr_t)addr);
-    if (it == sRegistry.end()) {
+    uintptr_t a = (uintptr_t)addr;
+    auto it = sRegistry.upper_bound(a);
+    if (it == sRegistry.begin()) {
+        return nullptr;
+    }
+    --it;
+    uint32_t inner = (uint32_t)(a - it->first);
+    if (inner >= it->second.size || (inner != 0 && (it->second.rowBytes == 0 || inner % it->second.rowBytes != 0))) {
         return nullptr;
     }
     // the buffer may have been reused for something else since it was registered
-    if (Signature(addr, it->second.size) != it->second.sig) {
+    if (Signature((const void*)it->first, it->second.size) != it->second.sig) {
         sRegistry.erase(it);
         return nullptr;
     }
+    const uint32_t rowsIn = inner != 0 ? inner / it->second.rowBytes : 0;
 
     const std::string& path = it->second.path;
+    auto rowOffset = [&](const std::shared_ptr<Fast::Texture>& t) -> std::shared_ptr<Fast::Texture> {
+        if (rowsIn == 0) {
+            return t;
+        }
+        // HD rows per N64 row is the vertical scale; only RGBA32 images can be offset this way
+        if (t->Type != Fast::TextureType::RGBA32bpp) {
+            return nullptr;
+        }
+        uint32_t hdRow = (uint32_t)(rowsIn * t->VPixelScale);
+        if (hdRow >= t->Height) {
+            return nullptr;
+        }
+        *hdOffset = hdRow * t->Width * 4;
+        *hdRowsSkipped = hdRow;
+        return t;
+    };
     auto cached = sTextures.find(path);
     if (cached != sTextures.end()) {
-        return cached->second;
+        return rowOffset(cached->second);
     }
     if (sMissing.count(path) != 0) {
         return nullptr;
@@ -318,7 +365,23 @@ std::shared_ptr<Fast::Texture> Port_ModTextureFor(const void* addr) {
         return nullptr;
     }
     Downscale(tex.get(), path);
+    if (sTextureBytes + tex->ImageDataSize > kTextureBudget && !sTextures.empty()) {
+        auto rm = Ship::Context::GetInstance()->GetResourceManager();
+        for (auto& entry : sTextures) {
+            if (entry.second != tex) {
+                rm->UnloadResource(ResolvePath(entry.first));
+            }
+        }
+        sTextures.clear();
+        sTextureBytes = 0;
+        gfx_texture_cache_clear();
+        fprintf(stderr, "[mods] texture budget reached, cache flushed\n");
+    }
     sTextures[path] = tex;
-    fprintf(stderr, "[mods] texture %s replaced (%ux%u)\n", path.c_str(), tex->Width, tex->Height);
-    return tex;
+    sTextureBytes += tex->ImageDataSize;
+    if (sReplacedLogged < 200) {
+        sReplacedLogged++;
+        fprintf(stderr, "[mods] texture %s replaced (%ux%u)\n", path.c_str(), tex->Width, tex->Height);
+    }
+    return rowOffset(tex);
 }
