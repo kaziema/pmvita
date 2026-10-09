@@ -151,11 +151,144 @@ void underwater_render(EffectInstance* effect) {
 void func_E00BA618(void) {
 }
 
+#ifdef PORT
+// The N64 copies the CFB into the z-buffer and redraws it warped. Here the frame is
+// copied into a GPU framebuffer, bound through a registered sentinel address, and
+// redrawn as a grid of screen-space quads.
+extern int gfx_create_framebuffer(u32 width, u32 height, u32 nativeWidth, u32 nativeHeight, u8 resize);
+extern void gfx_register_fb_texture(const void* cpuAddr, int fbId);
+extern s16 OTRGetRectDimensionFromLeftEdge(f32 v);
+extern s16 OTRGetRectDimensionFromRightEdge(f32 v);
+
+#define UW_COLS 18
+#define UW_ROWS 12
+#define UW_CELL 16
+
+static u16 sUnderwaterSentinel[SCREEN_WIDTH * SCREEN_HEIGHT];
+static s32 sUnderwaterFbId = -1;
+static Vtx sUnderwaterVtx[2][UW_COLS * UW_ROWS * 4];
+static Vp sUnderwaterFullVp = { .vp = {
+    .vscale = { 640, 480, 511, 0 },
+    .vtrans = { 640, 480, 511, 0 },
+} };
+
+// screen x (320 space) to S 10.5 across the full mirror, which spans the visible width
+static s32 underwater_mirror_s(s32 screenX, s32 visLeft, s32 visWidth) {
+    return (s32)(32.0f * SCREEN_WIDTH * (screenX - visLeft) / visWidth);
+}
+
+static void port_underwater_appendGfx(void* effect) {
+    UnderwaterFXData* data = ((EffectInstance*)effect)->data.underwater;
+    Vtx* vtxBuf = sUnderwaterVtx[gCurrentDisplayContextIndex];
+    s32 visLeft = OTRGetRectDimensionFromLeftEdge(0);
+    s32 visRight = OTRGetRectDimensionFromRightEdge(0);
+    s32 visWidth = visRight - visLeft;
+    Matrix4f mtx;
+    s32 i, j, k;
+    s32 vtxPos = 0;
+
+    if (sUnderwaterFbId < 0) {
+        sUnderwaterFbId = gfx_create_framebuffer(SCREEN_WIDTH, SCREEN_HEIGHT, SCREEN_WIDTH, SCREEN_HEIGHT, 1);
+        if (sUnderwaterFbId < 0) {
+            return;
+        }
+        gfx_register_fb_texture(sUnderwaterSentinel, sUnderwaterFbId);
+        fprintf(stderr, "[underwater] mirror fb=%d vis=%d..%d\n", sUnderwaterFbId, visLeft, visRight);
+    }
+    if (visWidth < 1) {
+        visLeft = 0;
+        visRight = SCREEN_WIDTH;
+        visWidth = SCREEN_WIDTH;
+    }
+
+    gDPPipeSync(gMainGfxPos++);
+    gDPCopyFB(gMainGfxPos++, sUnderwaterFbId, 0, false, NULL);
+
+    gDPSetPrimColor(gMainGfxPos++, 0, 0, data->waterColor.r, data->waterColor.g, data->waterColor.b, data->waterColor.a >> 1);
+    gDPSetCycleType(gMainGfxPos++, G_CYC_1CYCLE);
+    gDPSetCombineMode(gMainGfxPos++, PM_CC_48, PM_CC_48);
+    gDPSetRenderMode(gMainGfxPos++, CVG_DST_SAVE | ZMODE_OPA | FORCE_BL | G_RM_PASS, CVG_DST_SAVE | ZMODE_OPA | FORCE_BL | GBL_c2(G_BL_CLR_IN, G_BL_0, G_BL_CLR_IN, G_BL_1));
+    gDPSetTexturePersp(gMainGfxPos++, G_TP_NONE);
+    gDPSetTextureFilter(gMainGfxPos++, G_TF_BILERP);
+    gDPSetTextureLUT(gMainGfxPos++, G_TT_NONE);
+    gDPSetTextureDetail(gMainGfxPos++, G_TD_CLAMP);
+    gDPSetTextureLOD(gMainGfxPos++, G_TL_TILE);
+    gSPTexture(gMainGfxPos++, 0xFFFF, 0xFFFF, 0, G_TX_RENDERTILE, G_ON);
+
+    // the tile size is what normalises the UVs, so declare the whole frame
+    gDPLoadTextureTile(gMainGfxPos++, sUnderwaterSentinel, G_IM_FMT_RGBA, G_IM_SIZ_16b, SCREEN_WIDTH, SCREEN_HEIGHT,
+                       0, 0, SCREEN_WIDTH - 1, SCREEN_HEIGHT - 1, 0, G_TX_CLAMP, G_TX_CLAMP,
+                       G_TX_NOMASK, G_TX_NOMASK, G_TX_NOLOD, G_TX_NOLOD);
+
+    gSPViewport(gMainGfxPos++, &sUnderwaterFullVp);
+    // screen-space ortho in 10.2 units so the wave offsets keep sub-pixel precision
+    guOrthoF(mtx, 0.0f, SCREEN_WIDTH * 4.0f, SCREEN_HEIGHT * 4.0f, 0.0f, -500.0f, 500.0f, 1.0f);
+    guMtxF2L(mtx, &gDisplayContext->matrixStack[gMatrixListPos]);
+    gSPMatrix(gMainGfxPos++, &gDisplayContext->matrixStack[gMatrixListPos++], G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_PROJECTION);
+    guMtxIdentF(mtx);
+    guMtxF2L(mtx, &gDisplayContext->matrixStack[gMatrixListPos]);
+    gSPMatrix(gMainGfxPos++, &gDisplayContext->matrixStack[gMatrixListPos++], G_MTX_PUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
+    gSPClearGeometryMode(gMainGfxPos++, G_CULL_BOTH | G_LIGHTING);
+    gSPSetGeometryMode(gMainGfxPos++, G_SHADE | G_SHADING_SMOOTH);
+
+    for (j = 0; j < UW_ROWS; j++) {
+        s32 y = j * UW_CELL + 24;
+
+        for (i = 0; i < UW_COLS; i++) {
+            s32 x = i * UW_CELL + 16;
+            // edge cells run out to the screen edge; update leaves the outer ring undisplaced
+            s32 srcLeft = (i == 0) ? visLeft : x;
+            s32 srcRight = (i == UW_COLS - 1) ? visRight : x + UW_CELL;
+            s32 srcTop = (j == 0) ? 0 : y;
+            s32 srcBottom = (j == UW_ROWS - 1) ? SCREEN_HEIGHT : y + UW_CELL;
+            s32 uLeft = underwater_mirror_s(srcLeft, visLeft, visWidth);
+            s32 uRight = underwater_mirror_s(srcRight, visLeft, visWidth);
+            Vtx* v = &vtxBuf[vtxPos];
+
+            v[0].v.ob[0] = srcLeft * 4;
+            v[0].v.ob[1] = srcTop * 4 + data->unk_23[i][j];
+            v[0].v.tc[0] = uLeft;
+            v[0].v.tc[1] = srcTop * 32;
+            v[1].v.ob[0] = srcRight * 4;
+            v[1].v.ob[1] = srcTop * 4 + data->unk_23[i + 1][j];
+            v[1].v.tc[0] = uRight;
+            v[1].v.tc[1] = srcTop * 32;
+            v[2].v.ob[0] = srcLeft * 4;
+            v[2].v.ob[1] = srcBottom * 4 + data->unk_23[i][j + 1];
+            v[2].v.tc[0] = uLeft;
+            v[2].v.tc[1] = srcBottom * 32;
+            v[3].v.ob[0] = srcRight * 4;
+            v[3].v.ob[1] = srcBottom * 4 + data->unk_23[i + 1][j + 1];
+            v[3].v.tc[0] = uRight;
+            v[3].v.tc[1] = srcBottom * 32;
+
+            // PM_CC_48 only reads shade alpha; the tint is all prim color
+            for (k = 0; k < 4; k++) {
+                v[k].v.ob[2] = 0;
+                v[k].v.flag = 0;
+                v[k].v.cn[0] = 0;
+                v[k].v.cn[1] = 0;
+                v[k].v.cn[2] = 0;
+                v[k].v.cn[3] = 255;
+            }
+
+            gSPVertex(gMainGfxPos++, v, 4, 0);
+            gSP2Triangles(gMainGfxPos++, 0, 3, 1, 0, 0, 2, 3, 0);
+            vtxPos += 4;
+        }
+    }
+
+    gSPPopMatrix(gMainGfxPos++, G_MTX_MODELVIEW);
+    gDPPipeSync(gMainGfxPos++);
+    gSPViewport(gMainGfxPos++, &gCameras[gCurrentCameraID].vp);
+    gSPMatrix(gMainGfxPos++, &gDisplayContext->camPerspMatrix[gCurrentCameraID], G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_PROJECTION);
+    gDPPipeSync(gMainGfxPos++);
+}
+#endif
+
 void underwater_appendGfx(void* effect) {
 #ifdef PORT
-    // PORT: This effect reads nuGfxCfb_ptr as a texture (framebuffer-to-texture)
-    // to create water warp distortion. On PC, the framebuffer is in GPU VRAM,
-    // not CPU memory, so this reads garbage. Skip the effect entirely.
+    port_underwater_appendGfx(effect);
     return;
 #endif
     UnderwaterFXData* data = ((EffectInstance*)effect)->data.underwater;

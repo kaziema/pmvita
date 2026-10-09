@@ -577,6 +577,17 @@ u32 dma_copy(Addr romStart, Addr romEnd, void* vramDest) {
         return 0;
     }
 
+    // base+offset reads that run past the segment end resolve the end into a neighbouring stub;
+    // the raw pointer distance is the real N64 length there
+    if (realEnd <= realStart) {
+        uintptr_t rawLen = (uintptr_t)romEnd - (uintptr_t)romStart;
+        if ((uintptr_t)romEnd > (uintptr_t)romStart && rawLen <= 0x10000) {
+            fprintf(stderr, "[dma_copy] PORT: end crossed segment, using raw length 0x%X (ROM 0x%X)\n",
+                    (u32)rawLen, realStart);
+            realEnd = realStart + (u32)rawLen;
+        }
+    }
+
     if (realEnd <= realStart || vramDest == NULL) {
         fprintf(stderr, "[dma_copy] PORT: skipping invalid DMA (ROM 0x%X-0x%X dest=%p)\n",
                 realStart, realEnd, vramDest);

@@ -516,6 +516,9 @@ void Interpreter::TextureCacheClear() {
     mTextureCache.lru.clear();
 }
 
+// PORT: CPU sentinel address -> GPU framebuffer id, see gfx_register_fb_texture
+static std::unordered_map<uintptr_t, int> sPortFbTextures;
+
 extern int gPortFrameTris;
 extern int gPortFrameTexUploads;
 void port_gl_read_pixel(int x, int y, uint8_t* rgba);
@@ -1258,6 +1261,17 @@ void Interpreter::ImportTexture(int i, int tile, bool importReplacement) {
     const uint8_t* origAddr =
         GetReplacementData(importReplacement ? metadata : nullptr,
             mRdp->loaded_texture[tmemIdex].addr);
+
+    // PORT: a registered sentinel address binds its GPU framebuffer instead of importing
+    if (!importReplacement && i == 0 && origAddr != nullptr) {
+        auto fbIt = sPortFbTextures.find((uintptr_t)origAddr);
+        if (fbIt != sPortFbTextures.end()) {
+            Flush();
+            mRapi->SelectTextureFb(fbIt->second);
+            mRenderingState.mTextures[i] = nullptr;
+            return;
+        }
+    }
 
     TextureCacheKey key;
     if (fmt == G_IM_FMT_CI) {
@@ -5238,6 +5252,19 @@ static void gfx_step() {
         if (gfx_fill_wide_rect_handler_custom(&cmd)) {
             return;
         }
+    } else if (opcode == OPCODE(0x4b)) {
+        handled = true;
+        sUnhandledCount = 0;
+        if (gfx_set_strict_decal_handler_custom(&cmd)) {
+            return;
+        }
+    } else if (opcode == OTR_G_COPYFB) {
+        // PORT: the underwater effect mirrors the frame through this
+        handled = true;
+        sUnhandledCount = 0;
+        if (gfx_copy_fb_handler_custom(&cmd)) {
+            return;
+        }
     } else
 #endif
     if (rdpHandlers.contains(opcode)) {
@@ -5655,7 +5682,13 @@ void Interpreter::CopyFrameBuffer(int fb_dst_id, int fb_src_id, bool copyOnce, b
 
     // When rendering to the main window buffer or MSAA is enabled with a buffer size equal to the view port,
     // then the source coordinates must account for any docked ImGui elements
-    if (fb_src_id == 0 || (mMsaaLevel > 1 && mCurDimensions.width == mGameWindowViewport.width &&
+    // PORT: no ImGui game window here, so the viewport is never set; the frame is the whole buffer
+    if (mGameWindowViewport.width == 0 || mGameWindowViewport.height == 0) {
+        srcX0 = 0;
+        srcY0 = 0;
+        srcX1 = mCurDimensions.width;
+        srcY1 = mCurDimensions.height;
+    } else if (fb_src_id == 0 || (mMsaaLevel > 1 && mCurDimensions.width == mGameWindowViewport.width &&
                            mCurDimensions.height == mGameWindowViewport.height)) {
         srcX0 = mGameWindowViewport.x;
         srcY0 = mGameWindowViewport.y;
@@ -5883,6 +5916,10 @@ void gfx_cc_get_features(uint64_t shader_id0, uint32_t shader_id1, struct CCFeat
     if (cc_features->usedTextures[1] && shader_id1 & SHADER_OPT(TEXEL1_BLEND)) {
         cc_features->used_blend[1] = true;
     }
+}
+
+extern "C" void gfx_register_fb_texture(const void* cpuAddr, int fbId) {
+    Fast::sPortFbTextures[(uintptr_t)cpuAddr] = fbId;
 }
 
 extern "C" int gfx_create_framebuffer(uint32_t width, uint32_t height, uint32_t native_width, uint32_t native_height,
